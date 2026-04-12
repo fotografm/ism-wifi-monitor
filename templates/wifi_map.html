@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WiFi AP Map — raspi81</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+html, body { height: 100%; margin: 0; padding: 0; background: #080818; }
+
+#topbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 42px; z-index: 1000;
+    background: #0d0d20; border-bottom: 1px solid #4a4a8a;
+    display: flex; align-items: center; gap: 8px; padding: 0 12px;
+}
+.tb-home {
+    padding: 3px 10px; border: 1px solid #4a4a9a;
+    background: #0f0f28; color: #aaaadd; border-radius: 3px;
+    text-decoration: none; font-size: 11px; flex-shrink: 0;
+}
+.tb-home:hover { background: #1a1a40; }
+.tb-title {
+    font-size: 13px; color: #e8e8ff; letter-spacing: 3px;
+    text-transform: uppercase; font-weight: 700; margin-right: 8px;
+    padding-right: 10px; border-right: 1px solid #2a2a50;
+}
+.tb-link {
+    padding: 3px 10px; font-size: 11px; color: #aaaadd;
+    text-decoration: none; border-radius: 3px; letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.tb-link:hover { color: #f0f0ff; }
+.tb-sep { flex: 1; }
+.tb-btn {
+    padding: 3px 10px; border: 1px solid #4a4a9a;
+    background: #0f0f28; color: #aaaadd;
+    border-radius: 3px; font-size: 11px; cursor: pointer;
+    font-family: inherit; letter-spacing: 1px;
+}
+.tb-btn:hover { background: #1a1a40; color: #f0f0ff; }
+.tb-btn.active { background: #1a2a1a; border-color: #4a8a4a; color: #88ee88; }
+#ap-count {
+    font-size: 10px; color: #7878aa; letter-spacing: 1px;
+}
+
+#map {
+    position: fixed; top: 42px; left: 0; right: 0; bottom: 0;
+}
+
+/* Leaflet dark overrides */
+.leaflet-container { background: #0a0a18; }
+.leaflet-control-zoom a {
+    background: #0d0d20 !important; color: #aaaadd !important;
+    border-color: #4a4a8a !important;
+}
+.leaflet-control-zoom a:hover { background: #1a1a40 !important; color: #f0f0ff !important; }
+.leaflet-control-attribution {
+    background: rgba(8,8,24,0.8) !important; color: #4a4a8a !important; font-size: 9px;
+}
+.leaflet-control-attribution a { color: #6666aa !important; }
+
+/* AP popup */
+.ap-popup { min-width: 200px; font-family: inherit; }
+.ap-popup-ssid {
+    font-size: 14px; color: #f0f0ff; font-weight: 600; margin-bottom: 6px;
+    word-break: break-all;
+}
+.ap-popup-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 2px 0; border-bottom: 1px solid #2a2a50; font-size: 11px;
+}
+.ap-popup-row:last-child { border-bottom: none; }
+.ap-popup-lbl { color: #7878aa; }
+.ap-popup-val { color: #c8d2e8; font-family: monospace; font-size: 11px; }
+.enc-OPEN    { color: #ff6666; }
+.enc-WEP     { color: #ddaa44; }
+.enc-WPA     { color: #88ee88; }
+.enc-WPA2    { color: #88ee88; }
+.enc-WPA3    { color: #6688cc; }
+
+/* GPS dot */
+.gps-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #44ccff; border: 2px solid #ffffff;
+    box-shadow: 0 0 8px #44ccff88;
+}
+
+/* Legend */
+#legend {
+    position: fixed; bottom: 24px; left: 10px; z-index: 900;
+    background: rgba(13,13,32,0.92); border: 1px solid #4a4a8a;
+    border-radius: 4px; padding: 8px 12px; font-size: 10px; color: #aaaadd;
+}
+.leg-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.leg-row:last-child { margin-bottom: 0; }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+    <a href="#" onclick="window.location.href='http://'+location.hostname;return false;" class="tb-home">&#8592; Home</a>
+    <span class="tb-title">WiFi Map</span>
+    <a href="/" class="tb-link">Dashboard</a>
+    <a href="/aps" class="tb-link">AP List</a>
+    <span class="tb-sep"></span>
+    <span id="ap-count">—</span>
+    <button id="btn-track"  class="tb-btn" onclick="toggleTrack()">Track GPS</button>
+    <button id="btn-centre" class="tb-btn" onclick="centreOnGps()">Centre</button>
+</div>
+
+<div id="map"></div>
+
+<div id="legend">
+    <div class="leg-row"><div class="leg-dot" style="background:#ff6666"></div>Open</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#ddaa44"></div>WEP</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#44aa44"></div>WPA / WPA2</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#6688cc"></div>WPA3</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#44ccff;border:1px solid #fff"></div>Your position</div>
+</div>
+
+<script>
+// ── map init ──────────────────────────────────────────────────────────────────
+var map = L.map('map', {
+    center: [48.137, 11.575],
+    zoom: 15,
+    zoomControl: true,
+});
+
+L.tileLayer('/tiles/{z}/{x}/{y}', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+    maxZoom: 19,
+}).addTo(map);
+
+// ── marker colour by encryption ───────────────────────────────────────────────
+function encColour(enc) {
+    if (!enc || enc === 'OPEN')           return '#ff6666';
+    if (enc.indexOf('WPA3') !== -1)        return '#6688cc';
+    if (enc.indexOf('WPA') !== -1)         return '#44aa44';
+    if (enc === 'WEP')                     return '#ddaa44';
+    return '#888888';
+}
+
+function makeIcon(enc) {
+    var c = encColour(enc);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">' +
+              '<circle cx="9" cy="9" r="7" fill="' + c + '" fill-opacity="0.85" stroke="#000" stroke-width="1.5"/>' +
+              '</svg>';
+    return L.divIcon({
+        html: svg,
+        className: '',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+        popupAnchor: [0, -10],
+    });
+}
+
+function fmtTs(ts) {
+    if (!ts) return '—';
+    var d = (typeof ts === 'number') ? new Date(ts * 1000) : new Date(ts);
+    return isNaN(d) ? String(ts) : d.toISOString().replace('T',' ').slice(0,19);
+}
+
+function encClass(enc) {
+    if (!enc || enc === 'OPEN') return 'enc-OPEN';
+    if (enc.indexOf('WPA3') !== -1) return 'enc-WPA3';
+    if (enc.indexOf('WPA2') !== -1) return 'enc-WPA2';
+    if (enc.indexOf('WPA') !== -1)  return 'enc-WPA';
+    if (enc === 'WEP') return 'enc-WEP';
+    return '';
+}
+
+// ── AP markers ────────────────────────────────────────────────────────────────
+var apMarkers = {};
+
+function loadAPs() {
+    fetch('/api/ap_locations').then(function(r){ return r.json(); }).then(function(aps){
+        document.getElementById('ap-count').textContent = aps.length + ' APs mapped';
+
+        var seen = {};
+        aps.forEach(function(ap) {
+            seen[ap.bssid] = true;
+            if (apMarkers[ap.bssid]) {
+                apMarkers[ap.bssid].setLatLng([ap.latitude, ap.longitude]);
+                return;
+            }
+            var m = L.marker([ap.latitude, ap.longitude], { icon: makeIcon(ap.encryption) });
+            var enc = ap.encryption || 'OPEN';
+            var popup = '<div class="ap-popup">' +
+                '<div class="ap-popup-ssid">' + (ap.ssid || '<em>Hidden</em>') + '</div>' +
+                '<div class="ap-popup-row"><span class="ap-popup-lbl">BSSID</span><span class="ap-popup-val">' + ap.bssid + '</span></div>' +
+                '<div class="ap-popup-row"><span class="ap-popup-lbl">Encryption</span><span class="ap-popup-val ' + encClass(enc) + '">' + enc + '</span></div>' +
+                '<div class="ap-popup-row"><span class="ap-popup-lbl">Channel</span><span class="ap-popup-val">' + (ap.channel || '—') + '</span></div>' +
+                '<div class="ap-popup-row"><span class="ap-popup-lbl">Signal</span><span class="ap-popup-val">' + (ap.signal_dbm || '—') + ' dBm</span></div>' +
+                '<div class="ap-popup-row"><span class="ap-popup-lbl">Last seen</span><span class="ap-popup-val">' + fmtTs(ap.last_seen) + '</span></div>' +
+                '<div class="ap-popup-row"><span class="ap-popup-lbl">GPS fix</span><span class="ap-popup-val">' + fmtTs(ap.sighting_time) + '</span></div>' +
+                '</div>';
+            m.bindPopup(popup, { maxWidth: 280, className: 'ap-dark-popup' });
+            m.addTo(map);
+            apMarkers[ap.bssid] = m;
+        });
+
+        Object.keys(apMarkers).forEach(function(bssid) {
+            if (!seen[bssid]) { map.removeLayer(apMarkers[bssid]); delete apMarkers[bssid]; }
+        });
+    }).catch(function(){});
+}
+
+// ── GPS position ──────────────────────────────────────────────────────────────
+var gpsMarker = null;
+var tracking  = false;
+
+function toggleTrack() {
+    tracking = !tracking;
+    document.getElementById('btn-track').classList.toggle('active', tracking);
+}
+
+function centreOnGps() {
+    if (gpsMarker) {
+        map.setView(gpsMarker.getLatLng(), map.getZoom());
+    }
+}
+
+function updateGPS() {
+    fetch('http://' + location.hostname + ':8092/api/status')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            var lat = d.gps && d.gps.lat;
+            var lon = d.gps && d.gps.lon;
+            if (!lat || !lon) return;
+
+            var latlng = [lat, lon];
+            if (!gpsMarker) {
+                var dotIcon = L.divIcon({ html: '<div class="gps-dot"></div>',
+                    className: '', iconSize: [14,14], iconAnchor: [7,7] });
+                gpsMarker = L.marker(latlng, { icon: dotIcon, zIndexOffset: 1000 });
+                gpsMarker.addTo(map);
+                map.setView(latlng, 16);
+            } else {
+                gpsMarker.setLatLng(latlng);
+            }
+
+            if (tracking) map.setView(latlng, map.getZoom());
+        }).catch(function(){});
+}
+
+// Leaflet dark popup background
+var style = document.createElement('style');
+style.textContent = '.ap-dark-popup .leaflet-popup-content-wrapper { background:#0d0d20; border:1px solid #4a4a8a; color:#c8d2e8; border-radius:4px; box-shadow:none; }' +
+    '.ap-dark-popup .leaflet-popup-tip { background:#0d0d20; }' +
+    '.ap-dark-popup .leaflet-popup-close-button { color:#7878aa !important; }';
+document.head.appendChild(style);
+
+// ── polling ───────────────────────────────────────────────────────────────────
+loadAPs();
+updateGPS();
+setInterval(loadAPs,  10000);
+setInterval(updateGPS, 3000);
+</script>
+</body>
+</html>

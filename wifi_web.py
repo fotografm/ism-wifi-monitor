@@ -473,20 +473,59 @@ def aps():
         order=order)
 
 
+@app.route('/map')
+def wifi_map():
+    return send_from_directory(str(APP_DIR / 'templates'), 'wifi_map.html',
+                               mimetype='text/html')
+
+
 @app.route('/api/aps')
 def api_aps():
     dbconn = get_db()
-    rows   = dbconn.execute('''
+    rows = dbconn.execute('''
         SELECT
-            ap.bssid, ap.ssid, ap.encryption, ap.first_seen, ap.last_seen,
+            ap.bssid, ap.ssid, ap.encryption, ap.capabilities,
+            ap.first_seen, ap.last_seen,
             s.signal_dbm, s.channel, s.frequency_mhz,
-            s.latitude, s.longitude, s.gps_fix,
-            s.timestamp AS sighting_time,
+            s.latitude, s.longitude, s.gps_fix, s.timestamp AS sighting_time,
             (SELECT COUNT(*) FROM sightings WHERE bssid = ap.bssid) AS seen_count
         FROM access_points ap
         LEFT JOIN sightings s ON s.id = (
-            SELECT id FROM sightings WHERE bssid = ap.bssid ORDER BY timestamp DESC LIMIT 1
+            SELECT id FROM sightings WHERE bssid = ap.bssid
+            ORDER BY timestamp DESC LIMIT 1
         )
+        ORDER BY ap.last_seen DESC
+    ''').fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d['manufacturer'] = _oui_lookup(r['bssid'])
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/api/ap_locations')
+def api_ap_locations():
+    dbconn = get_db()
+    rows = dbconn.execute('''
+        SELECT
+            ap.bssid,
+            ap.ssid,
+            ap.encryption,
+            ap.last_seen,
+            s.signal_dbm,
+            s.channel,
+            s.frequency_mhz,
+            s.latitude,
+            s.longitude,
+            s.timestamp AS sighting_time
+        FROM access_points ap
+        JOIN sightings s ON s.id = (
+            SELECT id FROM sightings
+            WHERE bssid = ap.bssid AND gps_fix = 1
+            ORDER BY timestamp DESC LIMIT 1
+        )
+        WHERE s.latitude IS NOT NULL AND s.longitude IS NOT NULL
         ORDER BY ap.last_seen DESC
     ''').fetchall()
     return jsonify([dict(r) for r in rows])
