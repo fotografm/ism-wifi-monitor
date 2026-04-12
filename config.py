@@ -47,7 +47,7 @@ ISM_DEFAULT_BAND = "433"
 
 # ── WiFi scanner ──────────────────────────────────────────────────────────────
 CHANNEL_DWELL     = 0.3       # seconds per channel
-SIGHTING_INTERVAL = 30        # min seconds between sightings for same BSSID
+SIGHTING_INTERVAL = 10        # min seconds between full sightings rows for same BSSID
 SIGHTING_DISTANCE = 0.0001    # min degrees movement (~10 m) to force new sighting
 
 # EU 2.4 GHz (1-13) + EU 5 GHz (ETSI, incl. DFS)

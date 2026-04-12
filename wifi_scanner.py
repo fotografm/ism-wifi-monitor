@@ -90,6 +90,22 @@ def _upsert_ap(bssid: str, ssid: str, encryption: str,
     _get_conn().commit()
 
 
+def _update_ap_rssi(bssid: str, signal_dbm: Optional[int],
+                    channel: Optional[int], now: str) -> None:
+    """Update the latest sighting row's signal/channel and AP last_seen on every beacon.
+    This keeps the AP list live without writing a new sightings row every frame."""
+    _get_conn().execute(
+        "UPDATE access_points SET last_seen = ? WHERE bssid = ?",
+        (now, bssid)
+    )
+    # Update the most recent sighting's signal if one exists
+    _get_conn().execute('''
+        UPDATE sightings SET signal_dbm = ?, channel = ?, timestamp = ?
+        WHERE id = (SELECT id FROM sightings WHERE bssid = ? ORDER BY timestamp DESC LIMIT 1)
+    ''', (signal_dbm, channel, now, bssid))
+    _get_conn().commit()
+
+
 def _insert_sighting(bssid: str, signal_dbm: Optional[int],
                      channel: Optional[int], frequency_mhz: Optional[int],
                      lat: Optional[float], lon: Optional[float],
@@ -241,6 +257,8 @@ def handle_frame(pkt) -> None:
                              lat, lon, alt, fix, now)
             log.debug('Sighting %s (%s) ch=%s sig=%s gps=%s',
                       bssid, ssid or '(hidden)', channel, signal_dbm, fix)
+        else:
+            _update_ap_rssi(bssid, signal_dbm, channel, now)
     except Exception as exc:
         log.error('DB write error for %s: %s', bssid, exc)
 
