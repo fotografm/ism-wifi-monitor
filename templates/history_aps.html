@@ -1,0 +1,23 @@
+{% extends "history_base.html" %}
+{% block title %}Access Points{% endblock %}
+{% block content %}
+<h1>Access Points</h1>
+<p style="color:var(--dim);font-size:11px;margin-bottom:14px">Discovered from beacon frames. Updated every 30s per BSSID.</p>
+<table>
+  <thead><tr><th>SSID</th><th>BSSID</th><th>Ch</th><th>dBm</th><th>Beacons</th><th>First seen</th><th>Last seen</th></tr></thead>
+  <tbody>
+  {% for ap in aps %}
+  <tr>
+    <td>{% if ap.ssid %}<span class="tag">{{ ap.ssid }}</span>{% else %}<span style="color:var(--dim)">Hidden</span>{% endif %}</td>
+    <td style="font-family:monospace;font-size:11px">{{ ap.bssid }}</td>
+    <td>{{ ap.channel or "—" }}</td>
+    <td class="{% if ap.rssi and ap.rssi > -60 %}rssi-good{% elif ap.rssi and ap.rssi > -80 %}rssi-ok{% else %}rssi-weak{% endif %}">{{ ap.rssi or "—" }}</td>
+    <td style="color:var(--muted)">{{ ap.beacon_count }}</td>
+    <td style="color:var(--dim);white-space:nowrap;font-size:11px">{{ fmt_ts(ap.first_seen) }}</td>
+    <td style="color:var(--muted);font-size:11px">{{ fmt_ago(ap.last_seen) }}</td>
+  </tr>
+  {% else %}<tr><td colspan="7" class="no-data">No APs seen yet</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

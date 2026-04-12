@@ -1,0 +1,15 @@
+[Unit]
+Description=raspi81 WiFi History Web Server (port 8095)
+After=network.target
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/ism-wifi-monitor
+ExecStartPre=/bin/sleep 8
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/wifi_history_web.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

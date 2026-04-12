@@ -1,0 +1,23 @@
+{% extends "history_base.html" %}
+{% block title %}Devices{% endblock %}
+{% block content %}
+<h1>Device Fingerprints</h1>
+<p style="color:var(--dim);font-size:11px;margin-bottom:14px">
+  Each row is one unique physical device fingerprint, stable across MAC rotation. Click any device to see full details.
+</p>
+{% for d in devices %}
+<div class="device-card">
+  <div class="device-hdr">
+    <span class="badge badge-{{ d.os_hint or "unknown" }}">{{ d.os_hint or "unknown" }}</span>
+    <span class="device-vendor">{{ d.vendor or "Unknown vendor" }}</span>
+    <span style="font-family:monospace;font-size:10px;color:var(--dim)" title="{{ d.fp_hash }}">fp:{{ d.fp_hash[:16] }}&#8230;</span>
+    <span class="chip">{{ d.probe_count }} probes</span>
+    <span class="chip">{{ d.mac_count }} MAC{{ "s" if d.mac_count != 1 else "" }}</span>
+    <span class="chip">{{ fmt_ago(d.last_seen) }}</span>
+    <a href="/devices/{{ d.fp_hash }}" class="page-btn" style="font-size:10px;padding:2px 8px">Detail &#8594;</a>
+  </div>
+</div>
+{% else %}
+<p class="no-data">No device fingerprints yet — waiting for probe requests.</p>
+{% endfor %}
+{% endblock %}

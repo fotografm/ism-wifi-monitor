@@ -1,0 +1,40 @@
+{% extends "history_base.html" %}
+{% block title %}Probe Log{% endblock %}
+{% block content %}
+<h1>Probe Log</h1>
+<div class="filter-bar">
+  <form method="get" action="/probes" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="text" name="mac"  placeholder="Filter MAC&#8230;"  value="{{ mac_filter }}"  autocomplete="off">
+    <input type="text" name="ssid" placeholder="Filter SSID&#8230;" value="{{ ssid_filter }}" autocomplete="off">
+    <button type="submit">Apply</button>
+    {% if mac_filter or ssid_filter %}<a href="/probes">Clear</a>{% endif %}
+  </form>
+</div>
+<table>
+  <thead><tr><th>Timestamp</th><th>Source MAC</th><th>R</th><th>SSID</th><th>Ch</th><th>dBm</th><th>OS</th><th>Fingerprint</th></tr></thead>
+  <tbody>
+  {% for p in probes %}
+  <tr>
+    <td style="font-size:10px;color:var(--dim);white-space:nowrap">{{ fmt_ts(p.ts) }}</td>
+    <td style="font-family:monospace;font-size:11px">
+      <a href="/devices/{{ p.ie_fp }}" class="detail-link">{{ p.src_mac }}</a>
+    </td>
+    <td>{% if p.is_random %}<span style="color:var(--value-warn)" title="Randomized MAC">&#x21C4;</span>{% endif %}</td>
+    <td>{% if p.ssid %}<span class="tag">{{ p.ssid }}</span>{% else %}<span style="color:var(--dim)">—</span>{% endif %}</td>
+    <td>{{ p.channel or "—" }}</td>
+    <td class="{% if p.rssi and p.rssi > -60 %}rssi-good{% elif p.rssi and p.rssi > -80 %}rssi-ok{% else %}rssi-weak{% endif %}">{{ p.rssi or "—" }}</td>
+    <td><span class="badge badge-{{ p.os_hint or "unknown" }}">{{ p.os_hint or "?" }}</span></td>
+    <td style="font-family:monospace;font-size:10px;color:var(--dim)">
+      {% if p.ie_fp %}<a href="/devices/{{ p.ie_fp }}" class="detail-link" title="{{ p.ie_fp }}">{{ p.ie_fp[:12] }}&#8230;</a>{% else %}—{% endif %}
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="8" class="no-data">No probes found</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="pagination">
+  {% if page_num > 1 %}<a href="/probes?mac={{ mac_filter }}&ssid={{ ssid_filter }}&page={{ page_num - 1 }}" class="page-btn">&#8592; Prev</a>{% endif %}
+  <span style="color:var(--dim);font-size:11px">Page {{ page_num }}</span>
+  {% if probes | length == 100 %}<a href="/probes?mac={{ mac_filter }}&ssid={{ ssid_filter }}&page={{ page_num + 1 }}" class="page-btn">Next &#8594;</a>{% endif %}
+</div>
+{% endblock %}

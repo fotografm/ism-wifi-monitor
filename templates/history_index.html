@@ -1,0 +1,140 @@
+{% extends "history_base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+  <h1 style="margin:0">&#128246; WiFi Probe History</h1>
+  <span id="tick" style="font-size:10px;color:var(--dim);margin-left:auto"></span>
+</div>
+
+<div class="stat-row" style="margin-bottom:14px">
+  <div class="stat"><div class="stat-val" id="st-1h">—</div><div class="stat-lbl">Probes (1h)</div></div>
+  <div class="stat"><div class="stat-val" id="st-24h">—</div><div class="stat-lbl">Probes (24h)</div></div>
+  <div class="stat"><div class="stat-val" id="st-all">—</div><div class="stat-lbl">Total</div></div>
+  <div class="stat"><div class="stat-val" id="st-fps">—</div><div class="stat-lbl">Unique Devices</div></div>
+  <div class="stat"><div class="stat-val" id="st-aps">—</div><div class="stat-lbl">APs Seen</div></div>
+  <div class="stat"><div class="stat-val" id="st-ssids">—</div><div class="stat-lbl">Directed SSIDs</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>MAC</th>
+      <th>Manufacturer</th>
+      <th>SSID</th>
+      <th>Ch</th>
+      <th>dBm</th>
+      <th>OS</th>
+      <th>R</th>
+    </tr>
+  </thead>
+  <tbody id="probe-tbody"></tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var knownIds = {};
+
+function rssiClass(v) {
+    if (!v) return '';
+    if (v > -60) return 'rssi-good';
+    if (v > -80) return 'rssi-ok';
+    return 'rssi-weak';
+}
+
+function fmtTs(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts * 1000);
+    return d.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+function updateStats() {
+    fetch('/api/stats').then(function(r){ return r.json(); }).then(function(d){
+        document.getElementById('st-1h').textContent   = d.probes_1h   !== undefined ? d.probes_1h   : '—';
+        document.getElementById('st-24h').textContent  = d.probes_24h  !== undefined ? d.probes_24h  : '—';
+        document.getElementById('st-all').textContent  = d.probes_all  !== undefined ? d.probes_all  : '—';
+        document.getElementById('st-fps').textContent  = d.unique_fps  !== undefined ? d.unique_fps  : '—';
+        document.getElementById('st-aps').textContent  = d.unique_aps  !== undefined ? d.unique_aps  : '—';
+        document.getElementById('st-ssids').textContent = d.unique_ssids !== undefined ? d.unique_ssids : '—';
+    }).catch(function(){});
+}
+
+function updateProbes() {
+    fetch('/api/probes/recent').then(function(r){ return r.json(); }).then(function(rows){
+        var tbody = document.getElementById('probe-tbody');
+
+        rows.forEach(function(p, idx) {
+            var key = p.id;
+            var isNew = !knownIds[key];
+            knownIds[key] = true;
+
+            var row = tbody.rows[idx];
+            if (!row) {
+                row = tbody.insertRow(idx);
+                row.style.cursor = 'pointer';
+                for (var i = 0; i < 8; i++) row.insertCell(i);
+                (function(r, fp) {
+                    r.addEventListener('click', function() {
+                        if (fp) window.location.href = '/devices/' + fp;
+                    });
+                })(row, p.ie_fp);
+            }
+
+            row.cells[0].textContent = fmtTs(p.ts);
+            row.cells[0].style.cssText = 'font-size:10px;color:var(--dim);white-space:nowrap';
+
+            row.cells[1].textContent = p.src_mac;
+            row.cells[1].style.cssText = 'font-family:monospace;font-size:11px';
+
+            row.cells[2].textContent = p.vendor || '—';
+            row.cells[2].style.cssText = 'font-size:11px;color:var(--muted)';
+
+            if (p.ssid) {
+                row.cells[3].innerHTML = '<span class="tag">' + p.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>';
+            } else {
+                row.cells[3].innerHTML = '<span style="color:var(--dim)">wildcard</span>';
+            }
+
+            row.cells[4].textContent = p.channel || '—';
+
+            row.cells[5].textContent = p.rssi || '—';
+            row.cells[5].className = rssiClass(p.rssi);
+
+            row.cells[6].innerHTML = '<span class="badge badge-' + (p.os_hint || 'unknown') + '">' + (p.os_hint || '?') + '</span>';
+
+            row.cells[7].innerHTML = p.is_random ? '<span style="color:var(--value-warn)" title="Randomized MAC">R</span>' : '';
+
+            if (isNew) {
+                row.style.backgroundColor = '#1a1a38';
+                row.style.transition = 'none';
+                requestAnimationFrame(function() {
+                    requestAnimationFrame(function() {
+                        row.style.backgroundColor = '';
+                        row.style.transition = 'background-color 1.4s ease';
+                    });
+                });
+            }
+        });
+
+        while (tbody.rows.length > rows.length) {
+            tbody.deleteRow(tbody.rows.length - 1);
+        }
+    }).catch(function(){});
+}
+
+var TICK = 3, cd = TICK;
+setInterval(function() {
+    cd--;
+    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
+    if (cd <= 0) {
+        cd = TICK;
+        updateProbes();
+        updateStats();
+    }
+}, 1000);
+
+updateProbes();
+updateStats();
+</script>
+{% endblock %}

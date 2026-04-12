@@ -1,0 +1,25 @@
+{% extends "history_base.html" %}
+{% block title %}SSID History{% endblock %}
+{% block content %}
+<h1>Directed SSID History</h1>
+<p style="color:var(--dim);font-size:11px;margin-bottom:14px">
+  Network names in directed probe requests — SSIDs that nearby devices are actively searching for, revealing previously joined networks.
+</p>
+<table>
+  <thead><tr><th>SSID</th><th style="text-align:right">Probes</th><th style="text-align:right">MACs</th><th style="text-align:right">Devices</th><th>First seen</th><th>Last seen</th></tr></thead>
+  <tbody>
+  {% for s in ssids %}
+  <tr>
+    <td><span class="tag" style="max-width:380px">{{ s.ssid }}</span></td>
+    <td style="text-align:right">{{ s.probe_count }}</td>
+    <td style="text-align:right;color:var(--muted)">{{ s.mac_count }}</td>
+    <td style="text-align:right;color:var(--muted)">{{ s.device_count }}</td>
+    <td style="color:var(--dim);white-space:nowrap;font-size:11px">{{ fmt_ts(s.first_seen) }}</td>
+    <td style="color:var(--muted);font-size:11px">{{ fmt_ago(s.last_seen) }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="no-data">No directed SSIDs yet — modern devices mostly send wildcard probes.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

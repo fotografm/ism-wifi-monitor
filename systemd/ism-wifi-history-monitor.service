@@ -1,0 +1,16 @@
+[Unit]
+Description=raspi81 WiFi History Monitor (passive sniff on wlan1)
+After=network.target ism-wifi-wifi-scan.service
+
+[Service]
+Type=simple
+User=root
+Environment=HOME=/home/user
+WorkingDirectory=/home/user/ism-wifi-monitor
+ExecStartPre=/bin/sleep 25
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/wifi_history_monitor.py
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

@@ -16,6 +16,7 @@ HOTSPOT_IP      = '10.42.0.1'
 # ── Paths ─────────────────────────────────────────────────────────────────────
 DB_ISM_PATH     = BASE_DIR / 'db' / 'ism_monitor.db'
 DB_WIFI_PATH    = BASE_DIR / 'db' / 'wifi_logger.db'
+DB_HISTORY_PATH = BASE_DIR / 'db' / 'wifi_history.db'
 GPS_HISTORY_DB  = BASE_DIR / 'db' / 'gps_history.db'
 TILES_DB_PATH   = str(BASE_DIR / 'tiles' / 'tiles.mbtiles')
 TILE_CACHE_DIR  = BASE_DIR / 'tile_cache'
@@ -29,8 +30,9 @@ WEB_HOST        = '0.0.0.0'
 LANDING_PORT    = 80
 WIFI_WEB_PORT   = 8091
 ISM_PORT        = 8092
-GPS_WEB_PORT    = 8093
-SKYMAP3D_PORT   = 8094
+GPS_WEB_PORT      = 8093
+SKYMAP3D_PORT     = 8094
+WIFI_HISTORY_PORT = 8095
 
 # ── ISM — rtl_433 ─────────────────────────────────────────────────────────────
 RTL433_UDP_PORT  = 1433

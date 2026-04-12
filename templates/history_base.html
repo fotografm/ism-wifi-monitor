@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}WiFi History{% endblock %} — raspi81</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+body { padding: 0; }
+#hist-nav {
+    display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+    padding: 8px 14px; border-bottom: 1px solid var(--border-dim);
+    background: var(--panel);
+}
+.hn-home {
+    padding: 4px 12px; border: 1px solid var(--btn-border);
+    background: var(--btn-bg); color: var(--btn-label);
+    border-radius: 4px; text-decoration: none; font-size: 11px; flex-shrink: 0;
+}
+.hn-home:hover { background: var(--btn-bg-h); }
+.hn-brand {
+    font-size: 12px; color: var(--heading); letter-spacing: 3px;
+    text-transform: uppercase; margin-left: 6px; margin-right: 10px;
+    padding-right: 10px; border-right: 1px solid var(--border-dim);
+}
+.hn-link {
+    padding: 4px 10px; font-size: 11px; color: var(--muted);
+    text-decoration: none; border-radius: 3px; letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.hn-link:hover { color: var(--text); }
+.hn-link.active { color: var(--value-green); border-bottom: 2px solid var(--value-green); }
+.hist-main { padding: 16px 14px; max-width: 1280px; margin: 0 auto; }
+h1 { color: var(--heading); font-size: 15px; letter-spacing: 2px;
+     text-transform: uppercase; margin-bottom: 16px; }
+h2 { color: var(--muted); font-size: 11px; letter-spacing: 3px;
+     text-transform: uppercase; margin-bottom: 10px; }
+.stat-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.stat {
+    background: var(--panel); border: 1px solid var(--border-dim);
+    border-radius: 4px; padding: 10px 16px; flex: 1; min-width: 100px;
+}
+.stat-val { font-size: 24px; color: var(--value-green); margin-top: 3px; }
+.stat-lbl { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+.chart-box {
+    background: var(--panel); border: 1px solid var(--border-dim);
+    border-radius: 4px; padding: 12px;
+}
+.filter-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-bar input {
+    background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); font-family: inherit; font-size: 11px;
+    padding: 4px 8px; border-radius: 3px; width: 180px;
+}
+.filter-bar button, .filter-bar a {
+    background: var(--btn-bg); border: 1px solid var(--btn-border);
+    color: var(--btn-label); font-family: inherit; font-size: 10px;
+    padding: 4px 10px; cursor: pointer; border-radius: 3px; text-decoration: none;
+}
+.filter-bar button:hover, .filter-bar a:hover { background: var(--btn-bg-h); }
+.tag {
+    display: inline-block; background: #0d0d28; border: 1px solid var(--border-dim);
+    border-radius: 3px; padding: 1px 6px; font-size: 11px;
+    max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; vertical-align: middle; color: var(--value-white);
+}
+.badge {
+    display: inline-block; border-radius: 8px; padding: 1px 7px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.03em;
+}
+.badge-ios     { background: #0d1a2a; color: #6688cc; border: 1px solid #2a4a6a; }
+.badge-android { background: #0d1e0d; color: var(--value-green); border: 1px solid #1a4a1a; }
+.badge-windows { background: #1a1400; color: var(--value-warn); border: 1px solid #3a2a00; }
+.badge-iot     { background: #1a0d1a; color: #aa88cc; border: 1px solid #3a1a5a; }
+.badge-unknown { background: var(--panel); color: var(--muted); border: 1px solid var(--border-dim); }
+.badge-random  { background: #1a0d00; color: var(--value-warn); border: 1px solid #3a1a00; }
+.rssi-good { color: var(--value-green); }
+.rssi-ok   { color: var(--value-warn); }
+.rssi-weak { color: var(--value-alert); }
+.no-data { color: var(--dim); font-style: italic; padding: 20px; text-align: center; }
+.pagination { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+a.page-btn {
+    padding: 4px 10px; background: var(--btn-bg); border: 1px solid var(--btn-border);
+    color: var(--btn-label); text-decoration: none; border-radius: 3px; font-size: 11px;
+}
+a.page-btn:hover { background: var(--btn-bg-h); }
+a.detail-link { color: var(--heading); text-decoration: none; font-size: 11px; }
+a.detail-link:hover { color: var(--value-white); text-decoration: underline; }
+.device-card {
+    background: var(--panel); border: 1px solid var(--border-dim);
+    border-radius: 6px; margin-bottom: 10px; overflow: hidden;
+}
+.device-hdr {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: #0a0a18; border-bottom: 1px solid var(--border-dim); flex-wrap: wrap;
+}
+.device-vendor { font-size: 13px; color: var(--text); flex: 1; font-weight: 600; }
+.chip {
+    background: var(--bg); border: 1px solid var(--border-dim);
+    border-radius: 8px; padding: 1px 8px; font-size: 10px; color: var(--muted);
+}
+.device-body { display: grid; grid-template-columns: 1fr 1fr; }
+@media (max-width: 600px) { .device-body { grid-template-columns: 1fr; } }
+.device-col { padding: 10px 12px; border-right: 1px solid var(--border-dim); }
+.device-col:last-child { border-right: none; }
+.detail-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 2px;
+              color: var(--dim); margin-bottom: 6px; }
+.mac-list, .ssid-list { list-style: none; padding: 0; }
+.mac-list li, .ssid-list li {
+    font-size: 11px; padding: 3px 0;
+    border-bottom: 1px solid var(--border-dim); color: var(--text);
+}
+.mac-list li:last-child, .ssid-list li:last-child { border-bottom: none; }
+.ssid-list li { color: var(--heading); font-family: monospace; }
+</style>
+{% block head %}{% endblock %}
+</head>
+<body>
+<div id="hist-nav">
+    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="hn-home">&#8592; Home</a>
+    <span class="hn-brand">WiFi History</span>
+    <a href="/"            class="hn-link {% if page == 'index' %}active{% endif %}">Dashboard</a>
+    <a href="/probes"      class="hn-link {% if page == 'probes' %}active{% endif %}">Probes</a>
+    <a href="/devices"     class="hn-link {% if page == 'devices' %}active{% endif %}">Devices</a>
+    <a href="/aps"         class="hn-link {% if page == 'aps' %}active{% endif %}">APs</a>
+    <a href="/ssids"       class="hn-link {% if page == 'ssids' %}active{% endif %}">SSIDs</a>
+    <a href="/associations" class="hn-link {% if page == 'associations' %}active{% endif %}">Assoc</a>
+</div>
+<div class="hist-main">
+{% block content %}{% endblock %}
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

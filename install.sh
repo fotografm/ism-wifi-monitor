@@ -33,7 +33,7 @@ apt-get install -y \
 
 # ── 2. Create deploy directories ──────────────────────────────────────────────
 echo "[2/8] Creating deploy directories"
-mkdir -p "$DEPLOY_DIR"/{db,tile_cache,tiles,templates}
+mkdir -p "$DEPLOY_DIR"/{db,tile_cache,tiles,templates,data}
 chown -R user:user "$DEPLOY_DIR"
 
 # ── 3. Copy files ─────────────────────────────────────────────────────────────
@@ -43,12 +43,17 @@ cp "$REPO_DIR"/gps_reader_async.py "$DEPLOY_DIR/"
 cp "$REPO_DIR"/gps_reader_sync.py  "$DEPLOY_DIR/"
 cp "$REPO_DIR"/db_ism.py           "$DEPLOY_DIR/"
 cp "$REPO_DIR"/db_wifi.py          "$DEPLOY_DIR/"
+cp "$REPO_DIR"/db_history.py       "$DEPLOY_DIR/"
 cp "$REPO_DIR"/ism_monitor.py      "$DEPLOY_DIR/"
 cp "$REPO_DIR"/wifi_scanner.py     "$DEPLOY_DIR/"
 cp "$REPO_DIR"/wifi_web.py         "$DEPLOY_DIR/"
 cp "$REPO_DIR"/gps_web.py          "$DEPLOY_DIR/"
 cp "$REPO_DIR"/skymap3d.py         "$DEPLOY_DIR/"
 cp "$REPO_DIR"/landing_server.py   "$DEPLOY_DIR/"
+cp "$REPO_DIR"/wifi_history_monitor.py "$DEPLOY_DIR/"
+cp "$REPO_DIR"/wifi_history_web.py     "$DEPLOY_DIR/"
+cp "$REPO_DIR"/ie_parser.py            "$DEPLOY_DIR/"
+cp "$REPO_DIR"/oui.py                  "$DEPLOY_DIR/"
 cp "$REPO_DIR"/raspi-style.css     "$DEPLOY_DIR/"
 cp "$REPO_DIR"/templates/*.html    "$DEPLOY_DIR/templates/"
 chown -R user:user "$DEPLOY_DIR"
@@ -64,6 +69,13 @@ sudo -u user "$VENV/bin/pip" install \
     manuf \
     --quiet
 echo "     Venv ready: $VENV"
+
+# ── 5a. Download OUI database ──────────────────────────────────────────────────
+echo "[4b/8] Downloading IEEE OUI database for WiFi vendor lookup"
+sudo -u user wget -q -O "$DEPLOY_DIR/data/oui.csv" \
+    https://standards-oui.ieee.org/oui/oui.csv 2>/dev/null \
+    && echo "     OUI database downloaded" \
+    || echo "     OUI download failed — fallback hardcoded DB will be used"
 
 # ── 5. Initialise databases ───────────────────────────────────────────────────
 echo "[5/8] Initialising WiFi logger database"
@@ -95,6 +107,8 @@ cp "$REPO_DIR"/systemd/ism-wifi-ism.service          "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-skymap3d.service     "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-wifi-scan.service    "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-wifi-web.service     "$SVCDIR/"
+cp "$REPO_DIR"/systemd/ism-wifi-history-monitor.service "$SVCDIR/"
+cp "$REPO_DIR"/systemd/ism-wifi-history-web.service     "$SVCDIR/"
 
 systemctl daemon-reload
 
@@ -105,7 +119,9 @@ for svc in \
     ism-wifi-ism \
     ism-wifi-skymap3d \
     ism-wifi-wifi-scan \
-    ism-wifi-wifi-web
+    ism-wifi-wifi-web \
+    ism-wifi-history-monitor \
+    ism-wifi-history-web
 do
     systemctl enable "$svc"
     echo "     Enabled: $svc"
@@ -117,7 +133,7 @@ echo "[8/8] Install complete."
 echo ""
 echo "Start all services now with:"
 echo ""
-echo "  sudo systemctl start rfkill-unblock ism-wifi-landing ism-wifi-gps ism-wifi-ism ism-wifi-skymap3d ism-wifi-wifi-scan ism-wifi-wifi-web"
+echo "  sudo systemctl start rfkill-unblock ism-wifi-landing ism-wifi-gps ism-wifi-ism ism-wifi-skymap3d ism-wifi-wifi-scan ism-wifi-wifi-web ism-wifi-history-monitor ism-wifi-history-web"
 echo ""
 IP=$(hostname -I | awk '{print $1}')
 echo "Access at: http://$IP"
@@ -128,6 +144,7 @@ echo "  8091  — WiFi Logger (dashboard + APs)"
 echo "  8092  — ISM Monitor (feed + map + status)"
 echo "  8093  — GPS Dashboard"
 echo "  8094  — 3D Satellite Skymap"
+echo "  8095  — WiFi History (probe requests + device fingerprints)"
 echo ""
 echo "Interfaces:"
 echo "  wlan0 — hotspot (managed by NetworkManager, UNCHANGED)"

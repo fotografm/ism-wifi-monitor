@@ -1,0 +1,143 @@
+{% extends "history_base.html" %}
+{% block title %}Device Detail{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+  <a href="/devices" class="page-btn">&#8592; All Devices</a>
+  <h1 style="margin:0">Device Detail</h1>
+  <span class="badge badge-{{ device.os_hint or "unknown" }}">{{ device.os_hint or "unknown" }}</span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+
+  <div class="device-card">
+    <div class="device-hdr"><span class="device-vendor">Identity</span></div>
+    <div style="padding:10px 12px">
+      <div class="detail-lbl">Vendor</div>
+      <div style="margin-bottom:8px;color:var(--text)">{{ device.vendor or "Unknown" }}</div>
+      <div class="detail-lbl">Fingerprint hash</div>
+      <div style="font-family:monospace;font-size:10px;color:var(--dim);word-break:break-all;margin-bottom:8px">{{ device.fp_hash }}</div>
+      <div class="detail-lbl">OS hint</div>
+      <div style="margin-bottom:8px"><span class="badge badge-{{ device.os_hint or "unknown" }}">{{ device.os_hint or "unknown" }}</span></div>
+      <div class="detail-lbl">First / Last seen</div>
+      <div style="font-size:11px;color:var(--muted)">{{ fmt_ts(device.first_seen) }} &#8594; {{ fmt_ts(device.last_seen) }}</div>
+    </div>
+  </div>
+
+  <div class="device-card">
+    <div class="device-hdr"><span class="device-vendor">Statistics</span></div>
+    <div style="padding:10px 12px">
+      <div class="stat-row" style="margin-bottom:0">
+        <div class="stat"><div class="stat-val">{{ device.probe_count }}</div><div class="stat-lbl">Total Probes</div></div>
+        <div class="stat"><div class="stat-val">{{ device.mac_count }}</div><div class="stat-lbl">MACs Seen</div></div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="detail-lbl">Channels used</div>
+        <div style="height:80px;margin-top:6px"><canvas id="ch-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+
+  <div class="device-card">
+    <div class="device-hdr"><span class="device-vendor">MAC Addresses ({{ mac_list | length }})</span></div>
+    <div style="padding:10px 12px">
+      <ul class="mac-list">
+      {% for m in mac_list %}
+      <li>
+        <span style="font-family:monospace;color:var(--heading)">{{ m.src_mac }}</span>
+        {% if m.vendor %}<span style="color:var(--dim);font-size:10px"> — {{ m.vendor }}</span>{% endif %}
+        <span style="color:var(--dim);font-size:10px;float:right">x{{ m.sight_count }} &bull; {{ fmt_ago(m.last_seen) }}</span>
+      </li>
+      {% else %}<li class="no-data">No MACs recorded</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="device-card">
+    <div class="device-hdr"><span class="device-vendor">Directed SSIDs ({{ ssid_list | length }})</span></div>
+    <div style="padding:10px 12px">
+      {% if ssid_list %}
+      <ul class="ssid-list">
+        {% for ssid in ssid_list %}
+        <li>{{ ssid }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p style="color:var(--dim);font-size:11px;font-style:italic">
+        This device sends only wildcard probes — no directed SSIDs captured.
+        Modern iOS and Android 10+ do this by design.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<div class="device-card" style="margin-bottom:16px">
+  <div class="device-hdr"><span class="device-vendor">Recent Probes (last 50)</span></div>
+  <table>
+    <thead><tr><th>Time</th><th>MAC</th><th>SSID</th><th>Ch</th><th>dBm</th><th>R</th></tr></thead>
+    <tbody>
+    {% for p in probes %}
+    <tr>
+      <td style="font-size:10px;color:var(--dim);white-space:nowrap">{{ fmt_ts(p.ts) }}</td>
+      <td style="font-family:monospace;font-size:11px">{{ p.src_mac }}</td>
+      <td>{% if p.ssid %}<span class="tag">{{ p.ssid }}</span>{% else %}<span style="color:var(--dim)">wildcard</span>{% endif %}</td>
+      <td>{{ p.channel or "—" }}</td>
+      <td class="{% if p.rssi and p.rssi > -60 %}rssi-good{% elif p.rssi and p.rssi > -80 %}rssi-ok{% else %}rssi-weak{% endif %}">{{ p.rssi or "—" }}</td>
+      <td>{% if p.is_random %}<span style="color:var(--value-warn)">R</span>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="6" class="no-data">No probes recorded yet</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if assocs %}
+<div class="device-card">
+  <div class="device-hdr"><span class="device-vendor">Association Frames (last 50)</span></div>
+  <table>
+    <thead><tr><th>Time</th><th>Type</th><th>MAC</th><th>BSSID</th><th>SSID</th><th>Ch</th></tr></thead>
+    <tbody>
+    {% for a in assocs %}
+    <tr>
+      <td style="font-size:10px;color:var(--dim);white-space:nowrap">{{ fmt_ts(a.ts) }}</td>
+      <td><span class="badge badge-unknown">{{ fmt_subtype(a.frame_subtype) }}</span></td>
+      <td style="font-family:monospace;font-size:11px">{{ a.src_mac }}</td>
+      <td style="font-family:monospace;font-size:11px;color:var(--dim)">{{ a.bssid }}</td>
+      <td>{% if a.ssid %}<span class="tag">{{ a.ssid }}</span>{% else %}—{% endif %}</td>
+      <td>{{ a.channel or "—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+Chart.defaults.color = '#aaaadd';
+(function(){
+  var raw = {{ ch_dist | tojson | safe }};
+  if (!raw.length) return;
+  new Chart(document.getElementById('ch-chart'), {
+    type: 'bar',
+    data: { labels: raw.map(r => 'Ch' + r.channel),
+            datasets: [{ data: raw.map(r => r.cnt),
+              backgroundColor: 'rgba(136,136,204,0.5)', borderColor: '#4a4a8a', borderWidth: 1 }] },
+    options: { plugins: { legend: { display: false } }, animation: false,
+      scales: { x: { grid: { color: '#1e1e40' }, ticks: { font: { size: 9 } } },
+                y: { grid: { color: '#1e1e40' }, beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+})();
+</script>
+{% endblock %}
