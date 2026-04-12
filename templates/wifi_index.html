@@ -24,6 +24,7 @@ body { padding: 0; }
     border-radius: 4px; text-decoration: none; font-size: 11px; flex-shrink: 0;
 }
 .back-btn:hover { background: var(--btn-bg-h); }
+#tick { font-size: 10px; color: var(--dim); margin-left: auto; }
 .content { padding: 0 14px 14px; }
 
 .stat-row {
@@ -53,36 +54,40 @@ body { padding: 0; }
 .rssi-none { color: var(--dim); }
 .enc-open  { color: var(--value-alert); }
 .enc-wpa   { color: var(--value-green); }
+
+tr.new-row { background-color: #1a1a38; transition: none; }
+tr { transition: background-color 1.4s ease; }
 </style>
 </head>
 <body>
 <div id="topbar">
-    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">← Home</a>
-    <h1>📶 WiFi Channel Usage</h1>
-    <a href="/aps" style="margin-left:auto;font-size:11px;color:var(--muted);">All APs →</a>
+    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">&#8592; Home</a>
+    <h1>&#128246; WiFi Channel Usage</h1>
+    <a href="/aps" style="font-size:11px;color:var(--muted);">All APs &#8594;</a>
+    <span id="tick">&#8212;</span>
 </div>
 <div class="content">
 
 <div class="stat-row">
     <div class="stat">
         <div class="stat-label">Total APs</div>
-        <div class="stat-val">{{ total }}</div>
+        <div class="stat-val" id="st-total">&#8212;</div>
     </div>
     <div class="stat">
         <div class="stat-label">New (24h)</div>
-        <div class="stat-val">{{ new_24h }}</div>
+        <div class="stat-val" id="st-new24">&#8212;</div>
     </div>
     <div class="stat">
         <div class="stat-label">Uptime</div>
-        <div class="stat-val" id="si-uptime">—</div>
+        <div class="stat-val" id="si-uptime">&#8212;</div>
     </div>
     <div class="stat">
         <div class="stat-label">CPU</div>
-        <div class="stat-val" id="si-cpu">—</div>
+        <div class="stat-val" id="si-cpu">&#8212;</div>
     </div>
     <div class="stat">
         <div class="stat-label">RAM</div>
-        <div class="stat-val" id="si-ram">—</div>
+        <div class="stat-val" id="si-ram">&#8212;</div>
     </div>
 </div>
 
@@ -94,32 +99,116 @@ body { padding: 0; }
     <thead><tr>
         <th>SSID</th><th>BSSID</th><th>CH</th><th>Signal</th><th>Enc</th><th>Last seen</th><th>Count</th>
     </tr></thead>
-    <tbody>
-    {% for ap in recent %}
-    <tr>
-        <td>{{ ap.ssid or '[hidden]' }}</td>
-        <td style="font-size:10px">{{ ap.bssid }}</td>
-        <td>{{ ap.channel or '—' }}</td>
-        <td class="{{ rssi_class(ap.rssi) }}">{{ ap.rssi if ap.rssi else '—' }}</td>
-        <td class="enc-{{ 'open' if ap.encryption=='OPEN' else 'wpa' }}">{{ ap.encryption or '—' }}</td>
-        <td>{{ fmt_ts(ap.last_seen) }}</td>
-        <td>{{ ap.seen_count }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
+    <tbody id="recent-tbody"></tbody>
 </table>
 
 </div>
 
 <script>
-(function(){
-    var labels = [{% for r in ch_dist %}'{{ r.channel }}'{% if not loop.last %},{% endif %}{% endfor %}];
-    var data   = [{% for r in ch_dist %}{{ r.cnt }}{% if not loop.last %},{% endif %}{% endfor %}];
-    if (labels.length > 0) {
-        new Chart(document.getElementById('ch-chart'), {
+var chart = null;
+var knownBssids = {};
+
+function rssiClass(rssi) {
+    if (rssi === null || rssi === undefined) return 'rssi-none';
+    if (rssi >= -60) return 'rssi-good';
+    if (rssi >= -75) return 'rssi-ok';
+    return 'rssi-weak';
+}
+
+function fmtTs(ts) {
+    if (!ts) return '\u2014';
+    return ts.replace('T', ' ').slice(0, 16);
+}
+
+function encClass(enc) {
+    return (enc === 'OPEN') ? 'enc-open' : 'enc-wpa';
+}
+
+function updateStats() {
+    fetch('/api/stats').then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('st-total').textContent =
+            d.ap_count !== undefined ? d.ap_count.toLocaleString() : '\u2014';
+    }).catch(function() {});
+
+    fetch('/api/sysinfo').then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('si-uptime').textContent = d.uptime || '\u2014';
+        document.getElementById('si-cpu').textContent    = d.cpu    || '\u2014';
+        document.getElementById('si-ram').textContent    =
+            (d.mem && d.mem.pct != null) ? d.mem.pct + '%' : '\u2014';
+    }).catch(function() {});
+}
+
+function updateRecent() {
+    fetch('/api/aps').then(function(r) { return r.json(); }).then(function(aps) {
+        aps.sort(function(a, b) {
+            return (b.last_seen || '').localeCompare(a.last_seen || '');
+        });
+        var recent = aps.slice(0, 15);
+
+        var cutoff = new Date(Date.now() - 86400000).toISOString();
+        var new24 = aps.filter(function(a) {
+            return a.first_seen && a.first_seen > cutoff;
+        }).length;
+        document.getElementById('st-new24').textContent = new24;
+
+        var tbody = document.getElementById('recent-tbody');
+        recent.forEach(function(ap, idx) {
+            var bssid = ap.bssid;
+            var isNew = !knownBssids[bssid] || knownBssids[bssid] !== ap.last_seen;
+            knownBssids[bssid] = ap.last_seen;
+
+            var row = tbody.rows[idx];
+            if (!row) {
+                row = tbody.insertRow(idx);
+                for (var i = 0; i < 7; i++) row.insertCell(i);
+            }
+
+            row.cells[0].textContent = ap.ssid || '[hidden]';
+            row.cells[1].textContent = bssid;
+            row.cells[1].style.fontSize = '10px';
+            row.cells[2].textContent = ap.channel || '\u2014';
+            row.cells[3].textContent = ap.signal_dbm !== null && ap.signal_dbm !== undefined
+                ? ap.signal_dbm : '\u2014';
+            row.cells[3].className = rssiClass(ap.signal_dbm);
+            row.cells[4].textContent = ap.encryption || '\u2014';
+            row.cells[4].className = encClass(ap.encryption);
+            row.cells[5].textContent = fmtTs(ap.last_seen);
+            row.cells[6].textContent = ap.seen_count !== undefined ? ap.seen_count : '\u2014';
+
+            if (isNew) {
+                row.classList.add('new-row');
+                requestAnimationFrame(function() {
+                    requestAnimationFrame(function() { row.classList.remove('new-row'); });
+                });
+            }
+        });
+
+        while (tbody.rows.length > recent.length) {
+            tbody.deleteRow(tbody.rows.length - 1);
+        }
+
+        updateChart(aps);
+    }).catch(function() {});
+}
+
+function updateChart(aps) {
+    var chCount = {};
+    aps.forEach(function(ap) {
+        var ch = ap.channel;
+        if (ch !== null && ch !== undefined) {
+            chCount[ch] = (chCount[ch] || 0) + 1;
+        }
+    });
+    var channels = Object.keys(chCount).map(Number).sort(function(a, b) { return a - b; });
+    var labels = channels.map(String);
+    var data   = channels.map(function(c) { return chCount[c]; });
+
+    if (!chart) {
+        chart = new Chart(document.getElementById('ch-chart'), {
             type: 'bar',
             data: { labels: labels, datasets: [{ data: data,
-                backgroundColor: 'rgba(68,170,68,0.4)', borderColor: '#44aa44', borderWidth: 1 }] },
+                backgroundColor: 'rgba(68,170,68,0.4)',
+                borderColor: '#44aa44', borderWidth: 1 }] },
             options: {
                 animation: false, responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
@@ -130,15 +219,27 @@ body { padding: 0; }
                 }
             }
         });
+    } else {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.update('none');
     }
-})();
-fetch('/api/sysinfo').then(function(r){ return r.json(); }).then(function(d){
-    document.getElementById('si-uptime').textContent = d.uptime || '—';
-    document.getElementById('si-cpu').textContent    = d.cpu    || '—';
-    document.getElementById('si-ram').textContent    =
-        (d.mem && d.mem.pct != null) ? d.mem.pct + '%' : '—';
-}).catch(function(){});
-setTimeout(function(){ location.reload(); }, 30000);
+}
+
+var TICK = 3;
+var cd = TICK;
+setInterval(function() {
+    cd--;
+    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
+    if (cd <= 0) {
+        cd = TICK;
+        updateRecent();
+        updateStats();
+    }
+}, 1000);
+
+updateRecent();
+updateStats();
 </script>
 </body>
 </html>
