@@ -232,6 +232,14 @@ app = Flask(__name__, template_folder=str(APP_DIR / 'templates'))
 app.jinja_env.globals.update(rssi_class=rssi_class, fmt_ts=fmt_ts)
 
 
+# ── CORS (allows landing page at port 80 to fetch from port 8091) ─────────────
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
+
 # ── Per-request DB connection ─────────────────────────────────────────────────
 
 def get_db() -> sqlite3.Connection:

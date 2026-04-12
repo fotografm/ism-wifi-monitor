@@ -533,11 +533,26 @@ async def _delayed_shell(cmd: str, delay: float) -> None:
     os.system(cmd)
 
 
+# ── CORS middleware (allows landing page at port 80 to fetch from port 8092) ──
+
+@web.middleware
+async def cors_middleware(request: web.Request, handler) -> web.Response:
+    if request.method == 'OPTIONS':
+        return web.Response(headers={
+            'Access-Control-Allow-Origin':  '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+        })
+    response = await handler(request)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
+
 # ── Wire up routes ────────────────────────────────────────────────────────────
 
 def build_app() -> web.Application:
     app_obj = App()
-    wa = web.Application()
+    wa = web.Application(middlewares=[cors_middleware])
     wa.on_startup.append(app_obj.start)
     wa.on_cleanup.append(app_obj.stop)
 
