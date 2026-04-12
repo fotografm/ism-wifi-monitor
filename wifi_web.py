@@ -481,7 +481,8 @@ def api_aps():
             ap.bssid, ap.ssid, ap.encryption, ap.first_seen, ap.last_seen,
             s.signal_dbm, s.channel, s.frequency_mhz,
             s.latitude, s.longitude, s.gps_fix,
-            s.timestamp AS sighting_time
+            s.timestamp AS sighting_time,
+            (SELECT COUNT(*) FROM sightings WHERE bssid = ap.bssid) AS seen_count
         FROM access_points ap
         LEFT JOIN sightings s ON s.id = (
             SELECT id FROM sightings WHERE bssid = ap.bssid ORDER BY timestamp DESC LIMIT 1
