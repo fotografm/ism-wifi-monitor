@@ -24,7 +24,7 @@ body { padding: 0; }
 .filter-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .filter-bar input { background: var(--input-bg); border: 1px solid var(--border);
     color: var(--text); font-family: inherit; font-size: 11px;
-    padding: 4px 8px; border-radius: 3px; }
+    padding: 4px 8px; border-radius: 3px; width: 200px; }
 .filter-bar button { background: var(--btn-bg); border: 1px solid var(--btn-border);
     color: var(--btn-label); font-family: inherit; font-size: 10px;
     padding: 4px 10px; cursor: pointer; border-radius: 3px; }
@@ -56,7 +56,7 @@ tr { transition: background-color 1.4s ease; }
 <div class="content">
 
 <div class="filter-bar">
-    <input type="text" id="ssid-filter" placeholder="Filter SSID&#8230;">
+    <input type="text" id="ap-filter" placeholder="Filter&#8230;" style="width:260px">
     <button onclick="applyFilter()">Apply</button>
     <button onclick="clearFilter()">Clear</button>
     <span id="ap-count"></span>
@@ -66,11 +66,11 @@ tr { transition: background-color 1.4s ease; }
     <thead>
         <tr>
             <th onclick="sortBy('ssid')">SSID</th>
-            <th>BSSID</th>
+            <th onclick="sortBy('bssid')">BSSID</th>
             <th onclick="sortBy('channel')">CH</th>
             <th>Freq</th>
             <th onclick="sortBy('rssi')">Signal</th>
-            <th>Enc</th>
+            <th onclick="sortBy('encryption')">Enc</th>
             <th onclick="sortBy('first_seen')">First seen</th>
             <th onclick="sortBy('last_seen')">Last seen</th>
             <th onclick="sortBy('seen_count')">#</th>
@@ -84,12 +84,10 @@ tr { transition: background-color 1.4s ease; }
 var allAps = [];
 var sortCol = 'last_seen';
 var sortDir = 'desc';
-var filterSsid = '';
+var filterStr = '';
 var knownBssids = {};
 
-var COL_MAP = {
-    ssid: 0, channel: 2, rssi: 4, first_seen: 6, last_seen: 7, seen_count: 8
-};
+var COL_IDX = { ssid:0, bssid:1, channel:2, rssi:4, encryption:5, first_seen:6, last_seen:7, seen_count:8 };
 
 function rssiClass(v) {
     if (v === null || v === undefined) return 'rssi-none';
@@ -100,13 +98,27 @@ function rssiClass(v) {
 function encClass(e) { return e === 'OPEN' ? 'enc-open' : 'enc-wpa'; }
 function fmtTs(ts) { return ts ? ts.replace('T', ' ').slice(0, 16) : '\u2014'; }
 
+// Build a searchable string from all fields of an AP record
+function apSearchStr(ap) {
+    return [
+        ap.ssid || '',
+        ap.bssid || '',
+        ap.channel !== null && ap.channel !== undefined ? String(ap.channel) : '',
+        ap.frequency_mhz !== null && ap.frequency_mhz !== undefined ? String(ap.frequency_mhz) : '',
+        ap.signal_dbm !== null && ap.signal_dbm !== undefined ? String(ap.signal_dbm) : '',
+        ap.encryption || '',
+        ap.first_seen || '',
+        ap.last_seen || ''
+    ].join(' ').toLowerCase();
+}
+
 function applyFilter() {
-    filterSsid = document.getElementById('ssid-filter').value.trim().toLowerCase();
+    filterStr = document.getElementById('ap-filter').value.trim().toLowerCase();
     renderTable();
 }
 function clearFilter() {
-    document.getElementById('ssid-filter').value = '';
-    filterSsid = '';
+    document.getElementById('ap-filter').value = '';
+    filterStr = '';
     renderTable();
 }
 
@@ -117,10 +129,8 @@ function sortBy(col) {
         sortCol = col;
         sortDir = 'desc';
     }
-    document.querySelectorAll('thead th').forEach(function(th) {
-        th.className = '';
-    });
-    var idx = COL_MAP[col];
+    document.querySelectorAll('thead th').forEach(function(th) { th.className = ''; });
+    var idx = COL_IDX[col];
     if (idx !== undefined) {
         document.querySelectorAll('thead th')[idx].className = 'sort-' + sortDir;
     }
@@ -128,20 +138,26 @@ function sortBy(col) {
 }
 
 function renderTable() {
+    filterStr = document.getElementById('ap-filter').value.trim().toLowerCase();
     var filtered = allAps.filter(function(ap) {
-        if (!filterSsid) return true;
-        return (ap.ssid || '').toLowerCase().indexOf(filterSsid) !== -1;
+        if (!filterStr) return true;
+        return apSearchStr(ap).indexOf(filterStr) !== -1;
     });
 
     filtered.sort(function(a, b) {
         var av = a[sortCol], bv = b[sortCol];
         if (av === null || av === undefined) av = sortDir === 'asc' ? '\uffff' : '';
         if (bv === null || bv === undefined) bv = sortDir === 'asc' ? '\uffff' : '';
+        if (typeof av === 'number' && typeof bv === 'number') {
+            return sortDir === 'asc' ? av - bv : bv - av;
+        }
+        av = String(av); bv = String(bv);
         if (sortDir === 'asc') return av < bv ? -1 : av > bv ? 1 : 0;
         return av > bv ? -1 : av < bv ? 1 : 0;
     });
 
     var tbody = document.getElementById('ap-tbody');
+
     filtered.forEach(function(ap, idx) {
         var bssid = ap.bssid;
         var isNew = knownBssids[bssid] !== undefined && knownBssids[bssid] !== ap.last_seen;
@@ -154,7 +170,7 @@ function renderTable() {
         row.cells[0].textContent = ap.ssid || '[hidden]';
         row.cells[1].textContent = bssid;
         row.cells[1].style.fontSize = '10px';
-        row.cells[2].textContent = ap.channel || '\u2014';
+        row.cells[2].textContent = ap.channel !== null && ap.channel !== undefined ? ap.channel : '\u2014';
         row.cells[3].textContent = ap.frequency_mhz || '\u2014';
         row.cells[3].style.color = 'var(--dim)';
         row.cells[4].textContent = ap.signal_dbm !== null && ap.signal_dbm !== undefined ? ap.signal_dbm : '\u2014';
@@ -164,7 +180,7 @@ function renderTable() {
         row.cells[6].textContent = fmtTs(ap.first_seen);
         row.cells[6].style.color = 'var(--dim)';
         row.cells[7].textContent = fmtTs(ap.last_seen);
-        row.cells[8].textContent = ap.seen_count !== undefined && ap.seen_count !== null ? ap.seen_count : '\u2014';
+        row.cells[8].textContent = ap.seen_count !== null && ap.seen_count !== undefined ? ap.seen_count : '\u2014';
         row.cells[8].style.color = 'var(--muted)';
 
         if (isNew) {
@@ -202,11 +218,10 @@ setInterval(function() {
     }
 }, 1000);
 
-document.getElementById('ssid-filter').addEventListener('keydown', function(e) {
+document.getElementById('ap-filter').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') applyFilter();
 });
 
-// Set initial sort indicator
 document.querySelectorAll('thead th')[7].className = 'sort-desc';
 
 fetchAps();

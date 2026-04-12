@@ -149,21 +149,35 @@ def _channel_to_freq(ch: int) -> Optional[int]:
 
 
 def _parse_rsn(data: bytes) -> str:
+    """Parse RSN (802.11i) information element to detect WPA3/SAE."""
     try:
-        if len(data) < 8:
+        if len(data) < 4:
             return 'WPA2'
-        pw_count = int.from_bytes(data[6:8], 'little')
-        akm_off  = 8 + pw_count * 4
-        if akm_off + 2 > len(data):
+        # Skip version (2 bytes) + group cipher suite (4 bytes)
+        offset = 2
+        if offset + 4 > len(data):
             return 'WPA2'
-        akm_count = int.from_bytes(data[akm_off:akm_off + 2], 'little')
+        offset += 4  # skip group cipher
+
+        # Pairwise cipher count + suites
+        if offset + 2 > len(data):
+            return 'WPA2'
+        pw_count = int.from_bytes(data[offset:offset + 2], 'little')
+        offset += 2 + pw_count * 4
+
+        # AKM count + suites
+        if offset + 2 > len(data):
+            return 'WPA2'
+        akm_count = int.from_bytes(data[offset:offset + 2], 'little')
+        offset += 2
         for i in range(akm_count):
-            suite_start = akm_off + 2 + i * 4
-            if suite_start + 4 > len(data):
+            if offset + 4 > len(data):
                 break
-            akm_type = data[suite_start + 3]
-            if akm_type in (8, 9, 18):
+            akm_type = data[offset + 3]
+            # 8=SAE, 9=FT-SAE, 18=OWE (WPA3), 24=PASN
+            if akm_type in (8, 9, 18, 24):
                 return 'WPA3'
+            offset += 4
         return 'WPA2'
     except Exception:
         return 'WPA2'
@@ -194,6 +208,8 @@ def _parse_encryption(pkt) -> str:
                 has_wpa = True
         elt = elt.payload.getlayer(Dot11Elt) if elt.payload else None
 
+    if rsn_label == 'WPA3' and has_wpa:
+        return 'WPA3/WPA2'
     if rsn_label == 'WPA3':
         return 'WPA3'
     if has_rsn and has_wpa:
