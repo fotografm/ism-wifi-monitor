@@ -3,6 +3,7 @@ Description=raspi81 WiFi Scanner (wlan1 monitor mode)
 After=network.target rfkill-unblock.service
 
 [Service]
+Environment=HOME=/home/user
 Type=simple
 User=root
 WorkingDirectory=/home/user/ism-wifi-monitor
