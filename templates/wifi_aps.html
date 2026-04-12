@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>All APs — raspi81 WiFi</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<style>
+body { padding: 0; }
+
+#topbar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--border-dim);
+    background: var(--panel); margin-bottom: 16px;
+}
+#topbar h1 {
+    font-size: 13px; color: var(--heading); letter-spacing: 2px;
+    text-transform: uppercase; white-space: nowrap;
+}
+.back-btn {
+    padding: 4px 12px; border: 1px solid var(--btn-border);
+    background: var(--btn-bg); color: var(--btn-label);
+    border-radius: 4px; text-decoration: none; font-size: 11px; flex-shrink: 0;
+}
+.back-btn:hover { background: var(--btn-bg-h); }
+.content { padding: 0 14px 14px; }
+
+.filter-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.filter-bar input {
+    background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); font-family: inherit; font-size: 11px;
+    padding: 4px 8px; border-radius: 3px;
+}
+.filter-bar button, .filter-bar a {
+    background: var(--btn-bg); border: 1px solid var(--btn-border);
+    color: var(--btn-label); font-family: inherit; font-size: 10px;
+    padding: 4px 10px; cursor: pointer; border-radius: 3px; text-decoration: none;
+}
+.filter-bar button:hover, .filter-bar a:hover { background: var(--btn-bg-h); }
+
+.rssi-good { color: var(--value-green); }
+.rssi-ok   { color: var(--value-warn); }
+.rssi-weak { color: var(--value-alert); }
+.rssi-none { color: var(--dim); }
+.enc-open  { color: var(--value-alert); }
+.enc-wpa   { color: var(--value-green); }
+
+th a { color: inherit; text-decoration: none; }
+th a:hover { color: var(--heading); }
+
+.ap-count { color: var(--dim); font-size: 10px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="topbar">
+    <a href="/" class="back-btn">← Dashboard</a>
+    <h1>📶 All Access Points</h1>
+    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn" style="margin-left:auto">Home</a>
+</div>
+<div class="content">
+
+<div class="filter-bar">
+    <form method="get" action="/aps" style="display:flex;gap:8px;align-items:center">
+        <input type="text" name="ssid" placeholder="Filter SSID…" value="{{ ssid_filter }}">
+        <button type="submit">Apply</button>
+        {% if ssid_filter %}<a href="/aps">Clear</a>{% endif %}
+    </form>
+</div>
+
+<table>
+    <thead><tr>
+        <th><a href="/aps?sort=ssid&order={{ 'asc' if sort=='ssid' and order=='desc' else 'desc' }}">SSID</a></th>
+        <th>BSSID</th>
+        <th><a href="/aps?sort=channel&order={{ 'asc' if sort=='channel' and order=='desc' else 'desc' }}">CH</a></th>
+        <th>Freq</th>
+        <th><a href="/aps?sort=rssi&order={{ 'asc' if sort=='rssi' and order=='desc' else 'desc' }}">Signal</a></th>
+        <th>Enc</th>
+        <th><a href="/aps?sort=first_seen&order={{ 'asc' if sort=='first_seen' and order=='desc' else 'desc' }}">First seen</a></th>
+        <th><a href="/aps?sort=last_seen&order={{ 'asc' if sort=='last_seen' and order=='desc' else 'desc' }}">Last seen</a></th>
+        <th><a href="/aps?sort=seen_count&order={{ 'asc' if sort=='seen_count' and order=='desc' else 'desc' }}">#</a></th>
+    </tr></thead>
+    <tbody>
+    {% for ap in aps %}
+    <tr>
+        <td>{{ ap.ssid or '[hidden]' }}</td>
+        <td style="font-size:10px">{{ ap.bssid }}</td>
+        <td>{{ ap.channel or '—' }}</td>
+        <td style="color:var(--dim)">{{ ap.frequency or '—' }}</td>
+        <td class="{{ rssi_class(ap.rssi) }}">{{ ap.rssi if ap.rssi else '—' }}</td>
+        <td class="enc-{{ 'open' if ap.encryption=='OPEN' else 'wpa' }}">{{ ap.encryption or '—' }}</td>
+        <td style="color:var(--dim)">{{ fmt_ts(ap.first_seen) }}</td>
+        <td>{{ fmt_ts(ap.last_seen) }}</td>
+        <td style="color:var(--muted)">{{ ap.seen_count }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<p class="ap-count">{{ aps|length }} access points</p>
+
+</div>
+</body>
+</html>

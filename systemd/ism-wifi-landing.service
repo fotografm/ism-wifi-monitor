@@ -1,0 +1,16 @@
+[Unit]
+Description=raspi81 Combined Landing Server (port 80)
+After=network.target rfkill-unblock.service
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/ism-wifi-monitor
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+ExecStartPre=/bin/sleep 5
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/landing_server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

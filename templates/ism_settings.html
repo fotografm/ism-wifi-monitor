@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Status — raspi81</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<style>
+body { padding:16px; max-width:600px; margin:0 auto; }
+
+#topbar { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+.back-btn {
+    padding:4px 12px; border:1px solid var(--btn-border);
+    background:var(--btn-bg); color:var(--btn-label);
+    border-radius:4px; text-decoration:none; font-size:11px;
+}
+.back-btn:hover { background:var(--btn-bg-h); }
+h1 { font-size:13px; color:var(--heading); letter-spacing:2px; text-transform:uppercase; }
+
+.card {
+    background:var(--panel); border:1px solid var(--border-dim);
+    border-radius:6px; padding:16px; margin-bottom:16px;
+}
+.card h2 {
+    font-size:11px; text-transform:uppercase; letter-spacing:2px;
+    color:var(--muted); margin-bottom:14px;
+    padding-bottom:8px; border-bottom:1px solid var(--border-dim);
+}
+
+.stat-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:6px 0; border-bottom:1px solid var(--border-dim); font-size:12px;
+}
+.stat-row:last-child { border-bottom:none; }
+.stat-lbl { color:var(--muted); }
+.stat-val { color:var(--value-white); font-weight:bold; }
+.stat-val.green  { color:var(--value-green); }
+.stat-val.warn   { color:var(--value-warn); }
+.stat-val.alert  { color:var(--value-alert); }
+
+.action-btn {
+    padding:10px 18px; border-radius:4px; cursor:pointer;
+    font-size:12px; letter-spacing:1px; text-transform:uppercase;
+    border:1px solid var(--btn-border); background:var(--btn-bg);
+    color:var(--btn-label); transition:background 0.1s;
+    margin-top:8px; margin-right:8px;
+}
+.action-btn:hover { background:var(--btn-bg-h); border-color:var(--btn-border-h); }
+.action-btn.danger {
+    border-color:var(--red-border); background:#1a0808; color:var(--value-alert);
+}
+.action-btn.danger:hover { background:#2a1010; }
+.action-btn.warn-btn {
+    border-color:#664400; background:#1a1000; color:var(--value-warn);
+}
+.action-btn.warn-btn:hover { background:#2a1800; }
+
+.sdot {
+    display:inline-block; width:9px; height:9px; border-radius:50%;
+    background:#555; margin-right:6px; vertical-align:middle;
+}
+.sdot.green  { background:var(--green-bright); }
+.sdot.yellow { background:var(--value-warn); }
+.sdot.red    { background:var(--value-alert); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">← Home</a>
+    <h1>📊 Status</h1>
+</div>
+
+<div class="card">
+    <h2>rtl_433 Status</h2>
+    <div class="stat-row">
+        <span class="stat-lbl">Process</span>
+        <span class="stat-val" id="rtl-state">—</span>
+    </div>
+    <div class="stat-row">
+        <span class="stat-lbl">Current frequency</span>
+        <span class="stat-val green" id="rtl-freq">—</span>
+    </div>
+    <div class="stat-row">
+        <span class="stat-lbl">Packets decoded (session)</span>
+        <span class="stat-val green" id="rtl-pkts">—</span>
+    </div>
+</div>
+
+<div class="card">
+    <h2>GPS Status</h2>
+    <div class="stat-row">
+        <span class="stat-lbl">Status</span>
+        <span class="stat-val" id="gps-status-val">—</span>
+    </div>
+    <div class="stat-row">
+        <span class="stat-lbl">Satellites visible</span>
+        <span class="stat-val green" id="gps-sats-vis">—</span>
+    </div>
+    <div class="stat-row">
+        <span class="stat-lbl">Satellites in use</span>
+        <span class="stat-val green" id="gps-sats-used">—</span>
+    </div>
+    <div class="stat-row">
+        <span class="stat-lbl">HDOP</span>
+        <span class="stat-val" id="gps-hdop">—</span>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Signal Database</h2>
+    <div class="stat-row">
+        <span class="stat-lbl">Packets today</span>
+        <span class="stat-val green" id="db-today">—</span>
+    </div>
+    <div class="stat-row">
+        <span class="stat-lbl">Total packets</span>
+        <span class="stat-val green" id="db-total">—</span>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Map Tile Cache</h2>
+    <div class="stat-row">
+        <span class="stat-lbl">Cached tiles</span>
+        <span class="stat-val green" id="tile-count">—</span>
+    </div>
+    <div class="stat-row">
+        <span class="stat-lbl">Cache size</span>
+        <span class="stat-val green" id="tile-size">—</span>
+    </div>
+    <p style="font-size:10px;color:var(--dim);margin-top:8px">
+        Tiles fetched from OpenStreetMap when internet is available and cached permanently.
+        Offline: only cached tiles shown.
+    </p>
+    <button class="action-btn danger" onclick="clearTiles()">🗑 Clear Tile Cache</button>
+    <div id="tile-msg" style="font-size:11px;color:var(--muted);margin-top:8px;min-height:16px"></div>
+</div>
+
+<div class="card">
+    <h2>System</h2>
+    <button class="action-btn warn-btn" onclick="sysAction('reboot')">🔄 Reboot</button>
+    <button class="action-btn danger"   onclick="sysAction('shutdown')">🔴 Shutdown</button>
+    <div id="sys-msg" style="font-size:11px;color:var(--muted);margin-top:10px;min-height:16px"></div>
+</div>
+
+<script>
+const API = `http://${location.hostname}:8092`;
+
+function clearTiles() {
+    if (!confirm('Delete all cached map tiles?')) return;
+    fetch(API + '/api/clear-tiles', { method: 'POST' }).then(r => r.json()).then(d => {
+        const m = document.getElementById('tile-msg');
+        m.textContent = d.ok ? 'Cache cleared.' : 'Error clearing cache.';
+        setTimeout(() => loadStatus(), 1000);
+    });
+}
+
+function sysAction(action) {
+    const label = action === 'shutdown' ? 'Shut down' : 'Reboot';
+    if (!confirm(`${label} raspi81?`)) return;
+    const m = document.getElementById('sys-msg');
+    if (action === 'shutdown') {
+        m.textContent = 'Shutting down… wait 10 seconds before removing power.';
+        m.style.color = 'var(--value-alert)';
+    } else {
+        m.textContent = 'Rebooting…';
+        m.style.color = 'var(--value-warn)';
+    }
+    fetch(`${API}/api/${action}`, { method: 'POST' }).catch(() => {});
+}
+
+function loadStatus() {
+    fetch(API + '/api/status').then(r => r.json()).then(d => {
+        const running = d.rtl433.running;
+        document.getElementById('rtl-state').innerHTML =
+            `<span class="sdot ${running ? 'green' : 'red'}"></span>` +
+            (running ? 'Running' : 'Stopped');
+        document.getElementById('rtl-freq').textContent =
+            (d.rtl433.frequency / 1e6).toFixed(2) + ' MHz';
+        document.getElementById('rtl-pkts').textContent =
+            d.rtl433.packet_count.toLocaleString();
+        updateGpsFields(d.gps);
+        document.getElementById('db-today').textContent = d.signals.today.toLocaleString();
+        document.getElementById('db-total').textContent = d.signals.total.toLocaleString();
+        document.getElementById('tile-count').textContent = d.tile_cache.count.toLocaleString();
+        document.getElementById('tile-size').textContent  = d.tile_cache.size_mb.toFixed(1) + ' MB';
+    }).catch(() => {});
+}
+
+function updateGpsFields(d) {
+    const statusEl = document.getElementById('gps-status-val');
+    let cls = 'warn';
+    if (d.status === 'FIX')    cls = 'green';
+    if (d.status === 'NO_GPS') cls = 'alert';
+    statusEl.className   = `stat-val ${cls}`;
+    statusEl.textContent = d.status;
+    document.getElementById('gps-sats-vis').textContent =
+        d.sats_visible !== undefined ? d.sats_visible : '—';
+    document.getElementById('gps-sats-used').textContent =
+        d.sats_used !== undefined ? d.sats_used : '—';
+    document.getElementById('gps-hdop').textContent =
+        d.hdop !== null && d.hdop !== undefined ? d.hdop.toFixed(2) : '—';
+}
+
+let ws, wsRetry;
+function connect() {
+    ws = new WebSocket(`ws://${location.hostname}:8092/ws`);
+    ws.onopen  = () => clearTimeout(wsRetry);
+    ws.onclose = () => { wsRetry = setTimeout(connect, 4000); };
+    ws.onerror = () => {};
+    ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (msg.type === 'gps') updateGpsFields(msg.data);
+        if (msg.type === 'status') {
+            const d = msg.data;
+            document.getElementById('rtl-state').innerHTML =
+                `<span class="sdot ${d.running ? 'green' : 'red'}"></span>` +
+                (d.running ? 'Running' : 'Stopped');
+            document.getElementById('rtl-pkts').textContent =
+                d.packet_count.toLocaleString();
+        }
+    };
+}
+
+loadStatus();
+setInterval(loadStatus, 10000);
+connect();
+</script>
+</body>
+</html>

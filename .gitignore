@@ -1,0 +1,9 @@
+venv/
+db/
+tile_cache/
+tiles/
+__pycache__/
+*.pyc
+*.db
+manuf
+*.log

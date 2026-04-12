@@ -1,0 +1,18 @@
+[Unit]
+Description=raspi81 WiFi Scanner (wlan1 monitor mode)
+After=network.target rfkill-unblock.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/user/ism-wifi-monitor
+ExecStartPre=/bin/sleep 20
+ExecStartPre=/sbin/ip link set wlan1 down
+ExecStartPre=/sbin/iw dev wlan1 set type monitor
+ExecStartPre=/sbin/ip link set wlan1 up
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/wifi_scanner.py
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

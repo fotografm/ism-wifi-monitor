@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>raspi81 CYBERDECK</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<style>
+body { display:flex; flex-direction:column; align-items:center;
+       padding:24px 16px; gap:20px; min-height:100vh; }
+
+.page-title {
+    font-size:11px; letter-spacing:6px; text-transform:uppercase;
+    color:var(--muted); text-align:center; width:100%;
+    padding-bottom:6px; border-bottom:1px solid var(--border-dim);
+}
+.page-title span { color:var(--value-green); letter-spacing:2px; font-size:18px;
+                   display:block; margin-bottom:4px; }
+
+#badges {
+    display:flex; flex-wrap:wrap; gap:10px; justify-content:center;
+}
+.badge {
+    padding:5px 14px; border-radius:4px; font-size:12px;
+    border:1px solid var(--border-dim); background:var(--panel);
+    color:var(--muted); display:flex; align-items:center; gap:6px;
+}
+.badge .dot { width:8px; height:8px; border-radius:50%; background:#555; flex-shrink:0; }
+.badge.gps-fix   .dot { background:var(--green-bright); }
+.badge.gps-nofix .dot { background:var(--value-warn); }
+.badge.gps-none  .dot { background:#555; }
+.badge .val { color:var(--value-white); font-weight:bold; }
+.badge .lbl { color:var(--muted); }
+
+#pkt-counts {
+    text-align:center; color:var(--muted); font-size:12px;
+}
+#pkt-counts .num { color:var(--value-green); font-size:18px; font-weight:bold; }
+
+.big-btn {
+    display:block; width:100%; max-width:480px; padding:22px 16px;
+    background:var(--btn-bg); border:1px solid var(--btn-border);
+    color:var(--btn-label); text-decoration:none; text-align:center;
+    border-radius:6px; cursor:pointer;
+    transition:background 0.15s, border-color 0.15s;
+}
+.big-btn:hover { background:var(--btn-bg-h); border-color:var(--btn-border-h); }
+.big-btn .icon  { font-size:30px; display:block; margin-bottom:6px; }
+.big-btn .label { font-size:16px; letter-spacing:2px; text-transform:uppercase;
+                  color:var(--btn-label); }
+.big-btn .sub   { font-size:11px; color:var(--btn-sub); margin-top:4px; }
+
+.section-label {
+    width:100%; max-width:480px; font-size:9px; letter-spacing:3px;
+    text-transform:uppercase; color:var(--dim);
+    border-bottom:1px solid var(--border-dim); padding-bottom:4px;
+}
+
+#grid {
+    display:grid; grid-template-columns:1fr 1fr;
+    gap:12px; width:100%; max-width:480px;
+}
+.grid-btn {
+    padding:18px 10px; text-align:center;
+    background:var(--btn-bg); border:1px solid var(--btn-border);
+    color:var(--btn-label); text-decoration:none;
+    border-radius:6px; cursor:pointer;
+    transition:background 0.15s, border-color 0.15s;
+}
+.grid-btn:hover { background:var(--btn-bg-h); border-color:var(--btn-border-h); }
+.grid-btn .icon  { font-size:22px; display:block; margin-bottom:5px; }
+.grid-btn .label { font-size:13px; letter-spacing:1px; text-transform:uppercase; }
+.grid-btn .sub   { font-size:10px; color:var(--btn-sub); margin-top:3px; }
+
+#danger-row {
+    display:flex; gap:12px; width:100%; max-width:480px; margin-top:4px;
+}
+.danger-btn {
+    flex:1; padding:14px 10px; text-align:center;
+    border-radius:6px; border:1px solid var(--red-border);
+    background:#1a0808; color:var(--value-alert); cursor:pointer;
+    font-size:13px; letter-spacing:1px; text-transform:uppercase;
+    transition:background 0.15s;
+}
+.danger-btn:hover { background:#2a1010; }
+.reboot-btn { border-color:#664400; background:#1a1000; color:var(--value-warn); }
+.reboot-btn:hover { background:#2a1800; }
+
+#modal-bg {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.75); z-index:100;
+    align-items:center; justify-content:center;
+}
+#modal-bg.show { display:flex; }
+#modal {
+    background:var(--panel); border:1px solid var(--border);
+    padding:28px 32px; border-radius:8px; text-align:center; max-width:340px;
+}
+#modal h2 { color:var(--value-alert); font-size:16px; margin-bottom:12px; }
+#modal p  { color:var(--muted); font-size:13px; margin-bottom:20px; }
+#modal-btns { display:flex; gap:12px; justify-content:center; }
+.modal-cancel  { padding:10px 22px; border:1px solid var(--border);
+                 background:var(--btn-bg); color:var(--btn-label);
+                 border-radius:4px; cursor:pointer; font-size:13px; }
+.modal-cancel:hover  { background:var(--btn-bg-h); }
+.modal-confirm { padding:10px 22px; border:1px solid var(--red-border);
+                 background:#2a0808; color:var(--value-alert);
+                 border-radius:4px; cursor:pointer; font-size:13px; }
+.modal-confirm:hover { background:#3a1010; }
+</style>
+</head>
+<body>
+
+<div class="page-title">
+    <span>📡 CYBERDECK</span>
+    raspi81
+</div>
+
+<div id="badges">
+    <div class="badge gps-none" id="badge-gps">
+        <div class="dot"></div>
+        <span class="lbl">GPS</span>
+        <span class="val" id="gps-val">NO GPS</span>
+    </div>
+    <div class="badge" id="badge-band">
+        <span class="lbl">Band</span>
+        <span class="val" id="band-val">433 MHz</span>
+    </div>
+    <div class="badge" id="badge-rtl">
+        <div class="dot" id="rtl-dot"></div>
+        <span class="lbl">rtl_433</span>
+        <span class="val" id="rtl-val">—</span>
+    </div>
+    <div class="badge" id="badge-wifi">
+        <span class="lbl">WiFi APs</span>
+        <span class="val" id="wifi-ap-val">—</span>
+    </div>
+</div>
+
+<div id="pkt-counts">
+    <span class="num" id="cnt-today">—</span> today &nbsp;/&nbsp;
+    <span class="num" id="cnt-total">—</span> total ISM packets
+</div>
+
+<!-- ISM section -->
+<div class="section-label">ISM Monitor</div>
+
+<a href="#" onclick="window.location.href='http://'+location.hostname+':8092/feed';return false;" class="big-btn">
+    <span class="icon">📡</span>
+    <span class="label">ISM Signals Live Feed</span>
+    <span class="sub">Decoded 433 / 868 / 315 MHz signals</span>
+</a>
+
+<div id="grid">
+    <a href="#" onclick="window.location.href='http://'+location.hostname+':8092/map';return false;" class="grid-btn">
+        <span class="icon">🗺️</span>
+        <span class="label">ISM Signal Map</span>
+        <span class="sub">Transmitter locations</span>
+    </a>
+    <a href="#" onclick="window.location.href='http://'+location.hostname+':8092/settings';return false;" class="grid-btn">
+        <span class="icon">📊</span>
+        <span class="label">ISM Status</span>
+        <span class="sub">rtl_433, GPS, tiles</span>
+    </a>
+
+<!-- WiFi section -->
+    <a href="#" onclick="window.location.href='http://'+location.hostname+':8091';return false;" class="grid-btn">
+        <span class="icon">📶</span>
+        <span class="label">WiFi Dashboard</span>
+        <span class="sub">Recent APs, channel chart</span>
+    </a>
+    <a href="#" onclick="window.location.href='http://'+location.hostname+':8091/aps';return false;" class="grid-btn">
+        <span class="icon">📋</span>
+        <span class="label">All WiFi APs</span>
+        <span class="sub">Full sortable AP list</span>
+    </a>
+
+<!-- GPS section -->
+    <a href="#" onclick="window.open('http://'+location.hostname+':8093','_blank');return false;" class="grid-btn">
+        <span class="icon">🛰️</span>
+        <span class="label">GPS Dashboard</span>
+        <span class="sub">Skyplot, SNR, orbital graphs</span>
+    </a>
+    <a href="#" onclick="window.open('http://'+location.hostname+':8094','_blank');return false;" class="grid-btn">
+        <span class="icon">🌐</span>
+        <span class="label">3D Skymap</span>
+        <span class="sub">Interactive 3D satellite view</span>
+    </a>
+</div>
+
+<!-- Sysinfo -->
+<div id="sysinfo-row" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;width:100%;max-width:480px;">
+    <div class="badge"><span class="lbl">Uptime</span><span class="val" id="si-uptime">—</span></div>
+    <div class="badge"><span class="lbl">CPU</span><span class="val" id="si-cpu">—</span></div>
+    <div class="badge"><span class="lbl">RAM</span><span class="val" id="si-ram">—</span></div>
+    <div class="badge"><span class="lbl">Disk</span><span class="val" id="si-disk">—</span></div>
+</div>
+
+<div id="danger-row">
+    <button class="reboot-btn danger-btn" onclick="confirmAction('reboot')">
+        🔄 Reboot
+    </button>
+    <button class="danger-btn" onclick="confirmAction('shutdown')">
+        🔴 Shutdown
+    </button>
+</div>
+
+<div id="modal-bg">
+    <div id="modal">
+        <h2 id="modal-title">Confirm</h2>
+        <p id="modal-msg">Are you sure?</p>
+        <div id="modal-btns">
+            <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+            <button class="modal-confirm" id="modal-ok">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_ISM  = 'http://' + location.hostname + ':8092';
+const API_WIFI = 'http://' + location.hostname + ':8091';
+const WS_URL   = 'ws://'  + location.hostname + ':8092/ws';
+let ws, wsRetry;
+
+function connect() {
+    ws = new WebSocket(WS_URL);
+    ws.onopen  = function() { clearTimeout(wsRetry); };
+    ws.onclose = function() { wsRetry = setTimeout(connect, 4000); };
+    ws.onerror = function() {};
+    ws.onmessage = function(ev) {
+        var msg;
+        try { msg = JSON.parse(ev.data); } catch(e) { return; }
+        if (msg.type === 'gps')    updateGps(msg.data);
+        if (msg.type === 'status') updateRtl(msg.data);
+        if (msg.type === 'signal') scheduleStatusUpdate();
+    };
+}
+
+function updateGps(d) {
+    var el  = document.getElementById('badge-gps');
+    var val = document.getElementById('gps-val');
+    el.className = 'badge';
+    if (d.status === 'FIX') {
+        el.classList.add('gps-fix');
+        val.textContent = 'FIX';
+    } else if (d.status === 'NO_FIX') {
+        el.classList.add('gps-nofix');
+        val.textContent = 'NO FIX';
+    } else {
+        el.classList.add('gps-none');
+        val.textContent = 'NO GPS';
+    }
+}
+
+function updateRtl(d) {
+    document.getElementById('band-val').textContent =
+        (d.frequency / 1e6).toFixed(2) + ' MHz';
+    var dot = document.getElementById('rtl-dot');
+    var val = document.getElementById('rtl-val');
+    dot.style.background = d.running ? 'var(--green-bright)' : '#aa4444';
+    val.textContent = d.running ? 'RX' : 'STOPPED';
+}
+
+var _statusTimer = null;
+function scheduleStatusUpdate() {
+    if (_statusTimer) return;
+    _statusTimer = setTimeout(function() {
+        _statusTimer = null;
+        updateCounts();
+    }, 3000);
+}
+
+function updateCounts() {
+    fetch(API_ISM + '/api/status').then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('cnt-today').textContent =
+            d.signals.today.toLocaleString();
+        document.getElementById('cnt-total').textContent =
+            d.signals.total.toLocaleString();
+        if (d.sysinfo) {
+            var s = d.sysinfo;
+            document.getElementById('si-uptime').textContent = s.uptime || '—';
+            var cpuStr = s.cpu_pct + '%';
+            if (s.cpu_temp !== null && s.cpu_temp !== undefined) {
+                cpuStr += ' ' + s.cpu_temp + '\u00b0C';
+            }
+            document.getElementById('si-cpu').textContent = cpuStr;
+            document.getElementById('si-ram').textContent =
+                s.ram_used_mb + ' / ' + s.ram_total_mb + ' MB';
+            document.getElementById('si-disk').textContent =
+                s.disk_used_mb + ' / ' + s.disk_total_mb + ' MB';
+        }
+    }).catch(function() {});
+}
+
+function updateWifiStats() {
+    fetch(API_WIFI + '/api/stats').then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('wifi-ap-val').textContent =
+            (d.ap_count !== undefined && d.ap_count !== null)
+            ? d.ap_count.toLocaleString() : '—';
+    }).catch(function() {
+        document.getElementById('wifi-ap-val').textContent = '—';
+    });
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+var _pendingAction = null;
+function confirmAction(action) {
+    _pendingAction = action;
+    var isShutdown = action === 'shutdown';
+    document.getElementById('modal-title').textContent =
+        isShutdown ? '\ud83d\udd34 Shutdown' : '\ud83d\udd04 Reboot';
+    document.getElementById('modal-msg').textContent =
+        isShutdown
+        ? 'This will power off raspi81. Wait 10 seconds before removing power.'
+        : 'This will reboot raspi81.';
+    document.getElementById('modal-ok').textContent =
+        isShutdown ? 'Shut down' : 'Reboot';
+    document.getElementById('modal-bg').classList.add('show');
+}
+function closeModal() {
+    document.getElementById('modal-bg').classList.remove('show');
+    _pendingAction = null;
+}
+document.getElementById('modal-ok').onclick = function() {
+    if (!_pendingAction) return;
+    fetch(API_ISM + '/api/' + _pendingAction, { method: 'POST' }).catch(function() {});
+    closeModal();
+};
+
+connect();
+updateCounts();
+updateWifiStats();
+setInterval(updateCounts,     30000);
+setInterval(updateWifiStats,  30000);
+</script>
+</body>
+</html>

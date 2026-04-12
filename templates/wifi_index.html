@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WiFi Logger — raspi81</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+body { padding: 0; }
+
+#topbar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--border-dim);
+    background: var(--panel); margin-bottom: 16px;
+}
+#topbar h1 {
+    font-size: 13px; color: var(--heading); letter-spacing: 2px;
+    text-transform: uppercase; white-space: nowrap;
+}
+.back-btn {
+    padding: 4px 12px; border: 1px solid var(--btn-border);
+    background: var(--btn-bg); color: var(--btn-label);
+    border-radius: 4px; text-decoration: none; font-size: 11px; flex-shrink: 0;
+}
+.back-btn:hover { background: var(--btn-bg-h); }
+.content { padding: 0 14px 14px; }
+
+.stat-row {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.stat {
+    background: var(--panel); border: 1px solid var(--border-dim);
+    border-radius: 4px; padding: 10px 16px; flex: 1; min-width: 100px;
+}
+.stat-label {
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+}
+.stat-val { font-size: 22px; color: var(--value-green); margin-top: 3px; }
+
+.section-title {
+    font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+}
+#ch-chart-wrap {
+    height: 120px; margin-bottom: 16px; background: var(--panel);
+    border: 1px solid var(--border-dim); border-radius: 4px; padding: 10px;
+}
+
+.rssi-good { color: var(--value-green); }
+.rssi-ok   { color: var(--value-warn); }
+.rssi-weak { color: var(--value-alert); }
+.rssi-none { color: var(--dim); }
+.enc-open  { color: var(--value-alert); }
+.enc-wpa   { color: var(--value-green); }
+</style>
+</head>
+<body>
+<div id="topbar">
+    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">← Home</a>
+    <h1>📶 WiFi Logger</h1>
+    <a href="/aps" style="margin-left:auto;font-size:11px;color:var(--muted);">All APs →</a>
+</div>
+<div class="content">
+
+<div class="stat-row">
+    <div class="stat">
+        <div class="stat-label">Total APs</div>
+        <div class="stat-val">{{ total }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">New (24h)</div>
+        <div class="stat-val">{{ new_24h }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Uptime</div>
+        <div class="stat-val" id="si-uptime">—</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">CPU</div>
+        <div class="stat-val" id="si-cpu">—</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">RAM</div>
+        <div class="stat-val" id="si-ram">—</div>
+    </div>
+</div>
+
+<div class="section-title">channel distribution</div>
+<div id="ch-chart-wrap"><canvas id="ch-chart"></canvas></div>
+
+<div class="section-title">recently seen</div>
+<table>
+    <thead><tr>
+        <th>SSID</th><th>BSSID</th><th>CH</th><th>Signal</th><th>Enc</th><th>Last seen</th><th>Count</th>
+    </tr></thead>
+    <tbody>
+    {% for ap in recent %}
+    <tr>
+        <td>{{ ap.ssid or '[hidden]' }}</td>
+        <td style="font-size:10px">{{ ap.bssid }}</td>
+        <td>{{ ap.channel or '—' }}</td>
+        <td class="{{ rssi_class(ap.rssi) }}">{{ ap.rssi if ap.rssi else '—' }}</td>
+        <td class="enc-{{ 'open' if ap.encryption=='OPEN' else 'wpa' }}">{{ ap.encryption or '—' }}</td>
+        <td>{{ fmt_ts(ap.last_seen) }}</td>
+        <td>{{ ap.seen_count }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+</div>
+
+<script>
+(function(){
+    var labels = [{% for r in ch_dist %}'{{ r.channel }}'{% if not loop.last %},{% endif %}{% endfor %}];
+    var data   = [{% for r in ch_dist %}{{ r.cnt }}{% if not loop.last %},{% endif %}{% endfor %}];
+    if (labels.length > 0) {
+        new Chart(document.getElementById('ch-chart'), {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ data: data,
+                backgroundColor: 'rgba(68,170,68,0.4)', borderColor: '#44aa44', borderWidth: 1 }] },
+            options: {
+                animation: false, responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#aaaadd', font: { size: 9 } }, grid: { color: '#1a1a40' } },
+                    y: { ticks: { color: '#aaaadd', font: { size: 9 }, precision: 0 },
+                         grid: { color: '#1a1a40' }, beginAtZero: true }
+                }
+            }
+        });
+    }
+})();
+fetch('/api/sysinfo').then(function(r){ return r.json(); }).then(function(d){
+    document.getElementById('si-uptime').textContent = d.uptime || '—';
+    document.getElementById('si-cpu').textContent    = d.cpu    || '—';
+    document.getElementById('si-ram').textContent    =
+        (d.mem && d.mem.pct != null) ? d.mem.pct + '%' : '—';
+}).catch(function(){});
+setTimeout(function(){ location.reload(); }, 30000);
+</script>
+</body>
+</html>

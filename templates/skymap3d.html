@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Satellite Skymap</title>
+<style>
+  :root {
+    --bg:      #080812;
+    --surface: #10101e;
+    --border:  #222240;
+    --text:    #d0d0e8;
+    --muted:   #7070a0;
+    --accent:  #4a90e2;
+    --green:   #4ade80;
+    --red:     #f87171;
+    --yellow:  #fbbf24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px; display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 8px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  header h1   { font-size: 14px; color: var(--accent); }
+  .hstat      { color: var(--muted); white-space: nowrap; }
+  .hstat span { color: var(--text); font-weight: bold; }
+  .fix-ok     { color: var(--green) !important; }
+  .fix-no     { color: var(--red)   !important; }
+  #tick       { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+  .view-wrap {
+    flex: 1; display: flex; justify-content: center; align-items: center;
+    padding: 12px; min-height: 0;
+  }
+  #exo-canvas {
+    display: block; cursor: grab; touch-action: none;
+    border-radius: 8px; border: 1px solid var(--border);
+    max-width: min(96vw, 700px);
+    max-height: min(calc(100vh - 280px), 600px);
+    width: min(96vw, 700px);
+    height: min(calc(100vh - 280px), 600px);
+  }
+  #exo-canvas:active { cursor: grabbing; }
+
+  .sat-panel {
+    flex-shrink: 0;
+    background: var(--surface); border-top: 1px solid var(--border);
+    overflow-y: auto; max-height: 200px;
+  }
+  .sat-table { width: 100%; border-collapse: collapse; }
+  .sat-table thead th {
+    position: sticky; top: 0; background: var(--surface);
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.07em; padding: 5px 10px; text-align: left;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .sat-table thead th:not(:first-child) { text-align: right; }
+  .sat-table tbody tr:hover { background: #0d0d1e; }
+  .sat-table tbody td { padding: 4px 10px; border-bottom: 1px solid #111126; font-size: 12px; }
+  .sat-table tbody td:not(:first-child) { text-align: right; }
+  .prn-cell  { display: flex; align-items: center; gap: 6px; }
+  .prn-dot   { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .used-yes  { color: var(--green); }
+  .used-no   { color: var(--muted); }
+  .below     { opacity: 0.4; }
+  .mini-bar-bg   { height: 5px; background: var(--border); border-radius: 3px; min-width: 60px; }
+  .mini-bar-fill { height: 100%; border-radius: 3px; }
+
+  .legend {
+    flex-shrink: 0;
+    padding: 6px 14px; display: flex; flex-wrap: wrap;
+    gap: 6px 18px; background: var(--bg); border-top: 1px solid var(--border);
+  }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .leg-dot  { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/" onclick="window.location.href='http://'+window.location.hostname;return false;" style="color:#7070a0;font-size:12px;text-decoration:none;border:1px solid #222240;padding:3px 10px;border-radius:4px">← Home</a>
+  <h1>🌐 3D Satellite Skymap</h1>
+  <div class="hstat">Fix: <span id="h-fix" class="fix-no">—</span></div>
+  <div class="hstat">Mode: <span id="h-mode">—</span></div>
+  <div class="hstat">Sats: <span id="h-sats">—</span></div>
+  <div id="tick">↻ 2s</div>
+</header>
+
+<div class="view-wrap">
+  <canvas id="exo-canvas"></canvas>
+</div>
+
+<div class="sat-panel">
+  <table class="sat-table">
+    <thead>
+      <tr>
+        <th>Satellite</th>
+        <th>Elevation</th>
+        <th>Azimuth</th>
+        <th style="min-width:80px">C/N₀</th>
+        <th>Fix</th>
+      </tr>
+    </thead>
+    <tbody id="sat-tbody">
+      <tr><td colspan="5" style="color:var(--muted);padding:10px">Waiting for satellites…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="legend">
+  <div class="leg-item"><div class="leg-dot" style="background:#4ade80;box-shadow:0 0 5px #4ade80"></div>Used in fix</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#4a4a70;border:1px solid #7070a0"></div>Tracked only</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#1a1a2a;border:1px dashed #3a3a5a"></div>Below horizon</div>
+  <div class="leg-item" style="gap:8px"><div style="width:20px;height:2px;background:linear-gradient(90deg,transparent,#4ade8066,transparent)"></div>24 h orbital trail</div>
+  <div class="leg-item" style="color:#4a4a70">Drag to rotate · scroll to zoom</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+const R     = 5.0;
+const SAT_R = 0.22;
+
+const PALETTE = [
+  '#60a5fa','#4ade80','#fbbf24','#f87171','#a78bfa',
+  '#34d399','#fb923c','#38bdf8','#e879f9','#86efac',
+  '#fde68a','#fca5a5','#c4b5fd','#6ee7b7','#7dd3fc','#f9a8d4',
+];
+const _prnColor = {};
+let _prnIdx = 0;
+function colorFor(prn) {
+  if (!_prnColor[prn]) _prnColor[prn] = PALETTE[_prnIdx++ % PALETTE.length];
+  return _prnColor[prn];
+}
+
+function azElToV3(az_deg, el_deg, r) {
+  const az = az_deg * Math.PI / 180;
+  const el = el_deg * Math.PI / 180;
+  r = r || R;
+  return new THREE.Vector3(
+    r * Math.cos(el) * Math.sin(az),
+    r * Math.sin(el),
+    -r * Math.cos(el) * Math.cos(az)
+  );
+}
+
+function makeSprite(text, hexColor, sw, sh) {
+  sw = sw || 0.7; sh = sh || 0.35;
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 24;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = hexColor;
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 24, 12);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sp  = new THREE.Sprite(mat);
+  sp.scale.set(sw, sh, 1);
+  return sp;
+}
+
+class DragControl {
+  constructor(initX, initY) {
+    this.active = false;
+    this.lastX  = 0; this.lastY = 0;
+    this.rotX   = initX || 0;
+    this.rotY   = initY || 0;
+    this.sens   = 0.007;
+  }
+  start(x, y) { this.active = true; this.lastX = x; this.lastY = y; }
+  end()        { this.active = false; }
+  move(x, y) {
+    if (!this.active) return;
+    this.rotY += (x - this.lastX) * this.sens;
+    this.rotX += (y - this.lastY) * this.sens;
+    this.rotX  = Math.max(-1.4, Math.min(1.4, this.rotX));
+    this.lastX = x; this.lastY = y;
+  }
+  apply(group) { group.rotation.set(this.rotX, this.rotY, 0, 'YXZ'); }
+}
+
+function buildDome(pivot) {
+  const add = o => { pivot.add(o); return o; };
+  const shadGeo = new THREE.SphereGeometry(R * 0.985, 32, 16, 0, Math.PI*2, 0, Math.PI/2);
+  add(new THREE.Mesh(shadGeo, new THREE.MeshBasicMaterial({
+    color: 0x0a2818, transparent: true, opacity: 0.13, side: THREE.FrontSide, depthWrite: false
+  })));
+  const shadLoGeo = new THREE.SphereGeometry(R * 0.985, 32, 16, 0, Math.PI*2, Math.PI/2, Math.PI/2);
+  add(new THREE.Mesh(shadLoGeo, new THREE.MeshBasicMaterial({
+    color: 0x050e0a, transparent: true, opacity: 0.07, side: THREE.FrontSide, depthWrite: false
+  })));
+  const hGeo = new THREE.SphereGeometry(R, 24, 12, 0, Math.PI*2, 0, Math.PI/2);
+  add(new THREE.Mesh(hGeo, new THREE.MeshBasicMaterial({
+    color: 0x1e6040, wireframe: true, transparent: true, opacity: 0.55
+  })));
+  const lGeo = new THREE.SphereGeometry(R, 24, 12, 0, Math.PI*2, Math.PI/2, Math.PI/2);
+  add(new THREE.Mesh(lGeo, new THREE.MeshBasicMaterial({
+    color: 0x0d2818, wireframe: true, transparent: true, opacity: 0.22
+  })));
+  const dGeo = new THREE.CircleGeometry(R, 64);
+  const disc  = new THREE.Mesh(dGeo, new THREE.MeshBasicMaterial({
+    color: 0x081408, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false
+  }));
+  disc.rotation.x = -Math.PI / 2; add(disc);
+  const hrGeo = new THREE.RingGeometry(R - 0.05, R + 0.05, 64);
+  const hr    = new THREE.Mesh(hrGeo, new THREE.MeshBasicMaterial({
+    color: 0x22c55e, transparent: true, opacity: 0.80, side: THREE.DoubleSide
+  }));
+  hr.rotation.x = -Math.PI / 2; add(hr);
+  const crossY   = 0.03;
+  const crossMat = () => new THREE.LineBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.45 });
+  add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, crossY, -R), new THREE.Vector3(0, crossY, R)
+  ]), crossMat()));
+  add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-R, crossY, 0), new THREE.Vector3(R, crossY, 0)
+  ]), crossMat()));
+  [30, 60].forEach(el => {
+    const rr = R * Math.cos(el * Math.PI / 180);
+    const y  = R * Math.sin(el * Math.PI / 180);
+    const rg = new THREE.RingGeometry(rr - 0.03, rr + 0.03, 64);
+    const rm = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({
+      color: el === 60 ? 0x1a5030 : 0x112a18, transparent: true, opacity: 0.55, side: THREE.DoubleSide
+    }));
+    rm.rotation.x = -Math.PI / 2; rm.position.y = y; add(rm);
+    const lbl = makeSprite(el + '°', '#2a7a44', 0.45, 0.22);
+    lbl.position.set(rr + 0.35, y, 0.1); add(lbl);
+  });
+  const zen = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  zen.position.set(0, R, 0); add(zen);
+  [{ label: 'N', az: 0, col: '#4ade80' }, { label: 'E', az: 90, col: '#22c55e' },
+   { label: 'S', az: 180, col: '#22c55e' }, { label: 'W', az: 270, col: '#22c55e' }
+  ].forEach(({ label, az, col }) => {
+    const sp = makeSprite(label, col, 0.5, 0.25);
+    sp.position.copy(azElToV3(az, 0, R + 0.65)); add(sp);
+  });
+}
+
+const canvas   = document.getElementById('exo-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x080812, 1);
+const scene  = new THREE.Scene();
+const pivot  = new THREE.Group();
+scene.add(pivot);
+buildDome(pivot);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 200);
+camera.position.set(0, 5, 13);
+camera.lookAt(0, 1.5, 0);
+const satMeshes  = new Map();
+const trailLines = [];
+const drag = new DragControl(0.2, 0.35);
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  camera.fov = Math.max(20, Math.min(90, camera.fov + e.deltaY * 0.05));
+  camera.updateProjectionMatrix();
+}, { passive: false });
+canvas.addEventListener('mousedown',  e => drag.start(e.clientX, e.clientY));
+canvas.addEventListener('mousemove',  e => drag.move(e.clientX, e.clientY));
+canvas.addEventListener('mouseup',    () => drag.end());
+canvas.addEventListener('mouseleave', () => drag.end());
+canvas.addEventListener('touchstart', e => { e.preventDefault(); drag.start(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+canvas.addEventListener('touchmove',  e => { e.preventDefault(); drag.move(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+canvas.addEventListener('touchend',   () => drag.end());
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (renderer.domElement.width !== w || renderer.domElement.height !== h) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+function animate() {
+  requestAnimationFrame(animate);
+  drag.apply(pivot);
+  resize();
+  renderer.render(scene, camera);
+}
+animate();
+
+function updateSats(satellites) {
+  const seen = new Set();
+  (satellites || []).forEach(sat => {
+    if (sat.prn == null || sat.az == null || sat.el == null) return;
+    const prn    = String(sat.prn);
+    seen.add(prn);
+    const pos    = azElToV3(sat.az, sat.el);
+    const col    = colorFor(prn);
+    const used   = sat.used;
+    const below  = sat.el < 0;
+    const opacity = below ? 0.22 : (used ? 1.0 : 0.50);
+    const radius  = used ? SAT_R : SAT_R * 0.72;
+    if (satMeshes.has(prn)) {
+      const { mesh, glow, label } = satMeshes.get(prn);
+      mesh.position.copy(pos);
+      mesh.material.color.set(col);
+      mesh.material.opacity = opacity;
+      if (glow) { glow.position.copy(pos); glow.visible = used && !below; }
+      label.position.set(pos.x, pos.y + 0.45, pos.z);
+      label.material.opacity = opacity;
+    } else {
+      const geo  = new THREE.SphereGeometry(radius, 10, 7);
+      const mat  = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(pos); pivot.add(mesh);
+      let glow = null;
+      if (used && !below) {
+        const glowGeo = new THREE.SphereGeometry(radius * 1.75, 10, 7);
+        const glowMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.20, depthWrite: false });
+        glow = new THREE.Mesh(glowGeo, glowMat);
+        glow.position.copy(pos); pivot.add(glow);
+      }
+      const label = makeSprite(prn, col);
+      label.position.set(pos.x, pos.y + 0.45, pos.z);
+      label.material.opacity = opacity;
+      pivot.add(label);
+      satMeshes.set(prn, { mesh, glow, label });
+    }
+  });
+  satMeshes.forEach(({ mesh, glow, label }, prn) => {
+    if (!seen.has(prn)) {
+      pivot.remove(mesh); if (glow) pivot.remove(glow); pivot.remove(label);
+      mesh.geometry.dispose(); mesh.material.dispose();
+      if (glow) { glow.geometry.dispose(); glow.material.dispose(); }
+      label.material.map.dispose(); label.material.dispose();
+      satMeshes.delete(prn);
+    }
+  });
+}
+
+function updateTrails(history) {
+  trailLines.forEach(l => { pivot.remove(l); l.geometry.dispose(); l.material.dispose(); });
+  trailLines.length = 0;
+  Object.keys(history || {}).forEach(prn => {
+    const pts = history[prn];
+    if (!pts || pts.length < 2) return;
+    const col = new THREE.Color(colorFor(prn));
+    let seg = [];
+    for (let i = 0; i < pts.length; i++) {
+      const [age, az, el] = pts[i];
+      const prev = i > 0 ? pts[i-1][0] : age;
+      if (i > 0 && Math.abs(age - prev) > 90) {
+        if (seg.length >= 2) addTrail(seg, col); seg = [];
+      }
+      seg.push(azElToV3(az, el));
+    }
+    if (seg.length >= 2) addTrail(seg, col);
+  });
+}
+
+function addTrail(points, color) {
+  const geo  = new THREE.BufferGeometry().setFromPoints(points);
+  const mat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.60, linewidth: 2 });
+  const line = new THREE.Line(geo, mat);
+  pivot.add(line); trailLines.push(line);
+}
+
+function updateSatTable(satellites) {
+  const tbody = document.getElementById('sat-tbody');
+  if (!satellites || satellites.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);padding:10px">No satellites</td></tr>';
+    return;
+  }
+  const sorted = [...satellites].sort((a, b) => (b.el || -90) - (a.el || -90));
+  tbody.innerHTML = sorted.map(s => {
+    const col    = colorFor(String(s.prn));
+    const below  = s.el < 0;
+    const cls    = below ? ' class="below"' : '';
+    const snr    = s.ss != null ? s.ss : 0;
+    const snrPct = Math.min(100, (snr / 50) * 100);
+    const snrCol = snr < 20 ? '#f87171' : snr < 30 ? '#fbbf24' : snr < 40 ? '#4ade80' : '#22d3ee';
+    const elPct  = Math.min(100, Math.max(0, ((s.el || 0) + 5) / 95 * 100));
+    const fixStr = s.used
+      ? '<span class="used-yes">✓ used</span>'
+      : '<span class="used-no">· not used</span>';
+    return `<tr${cls}>
+      <td><div class="prn-cell"><div class="prn-dot" style="background:${col}"></div>
+        <span style="color:var(--text)">${s.prn ?? '?'}</span></div></td>
+      <td><div class="mini-bar-bg"><div class="mini-bar-fill" style="width:${elPct}%;background:#22c55e"></div></div>
+        <span style="font-size:11px;color:var(--muted)">${s.el != null ? s.el.toFixed(1) + '°' : '—'}</span></td>
+      <td style="color:var(--muted)">${s.az != null ? s.az.toFixed(1) + '°' : '—'}</td>
+      <td><div class="mini-bar-bg"><div class="mini-bar-fill" style="width:${snrPct}%;background:${snrCol}"></div></div>
+        <span style="font-size:11px;color:var(--muted)">${s.ss != null ? s.ss : '—'}</span></td>
+      <td>${fixStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderHeader(d) {
+  const fixEl = document.getElementById('h-fix');
+  const modes = ['—', 'No fix', '2D fix', '3D fix'];
+  if (d.position && d.position.fix) { fixEl.textContent = 'OK'; fixEl.className = 'fix-ok'; }
+  else { fixEl.textContent = 'No fix'; fixEl.className = 'fix-no'; }
+  document.getElementById('h-mode').textContent = d.position ? (modes[d.position.mode] || '—') : '—';
+  document.getElementById('h-sats').textContent = d.sky ? `${d.sky.used_count} / ${d.sky.sat_count}` : '—';
+}
+
+let lastHistory = {};
+async function fetchCurrent() {
+  try {
+    const d    = await fetch('/api/gps').then(r => r.json());
+    const sats = (d.sky && d.sky.satellites) || [];
+    renderHeader(d); updateSats(sats); updateSatTable(sats);
+  } catch(e) { console.error('GPS fetch:', e); }
+}
+async function fetchHistory() {
+  try {
+    lastHistory = await fetch('/api/gps_history').then(r => r.json());
+    updateTrails(lastHistory);
+  } catch(e) { console.error('History fetch:', e); }
+}
+
+let cd = 2, tickCount = 0;
+document.addEventListener('DOMContentLoaded', () => {
+  fetchCurrent(); fetchHistory();
+  setInterval(() => {
+    cd--;
+    document.getElementById('tick').textContent = `↻ ${cd}s`;
+    if (cd <= 0) {
+      fetchCurrent(); cd = 2; tickCount++;
+      if (tickCount % 15 === 0) fetchHistory();
+    }
+  }, 1000);
+});
+</script>
+</body>
+</html>

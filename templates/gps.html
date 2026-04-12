@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPS Dashboard</title>
+<style>
+  :root {
+    --bg:      #0f0f1a;
+    --surface: #1a1a2e;
+    --border:  #2a2a4a;
+    --text:    #d0d0e8;
+    --muted:   #7070a0;
+    --accent:  #4a90e2;
+    --green:   #4ade80;
+    --yellow:  #fbbf24;
+    --red:     #f87171;
+    --orange:  #fb923c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 8px 16px; display: flex; align-items: center;
+    gap: 16px; flex-wrap: wrap;
+  }
+  header h1   { font-size: 14px; color: var(--accent); }
+  .hstat      { color: var(--muted); white-space: nowrap; }
+  .hstat span { color: var(--text); font-weight: bold; }
+  .fix-ok     { color: var(--green) !important; }
+  .fix-no     { color: var(--red)   !important; }
+  #tick       { color: var(--muted); font-size: 12px; }
+
+  /* ── Shutdown button ── */
+  #shutdown-btn {
+    margin-left: auto;
+    background: #7f1d1d; color: #fca5a5;
+    border: 1px solid #991b1b; padding: 4px 12px;
+    border-radius: 4px; cursor: pointer; font-size: 12px;
+    white-space: nowrap; font-family: inherit;
+  }
+  #shutdown-btn:hover { background: #991b1b; }
+
+  /* ── Shutdown modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 28px 32px; min-width: 280px; text-align: center;
+  }
+  .modal h2 { color: var(--red); margin-bottom: 8px; font-size: 15px; }
+  .modal p  { color: var(--muted); margin-bottom: 24px; font-size: 12px; }
+  .modal-btns { display: flex; gap: 10px; justify-content: center; }
+  .modal-btns button {
+    padding: 7px 20px; border-radius: 4px; font-size: 13px;
+    cursor: pointer; border: none; font-family: inherit;
+  }
+  .btn-cancel   { background: var(--border); color: var(--text); }
+  .btn-reboot   { background: #92400e; color: #fcd34d; }
+  .btn-shutdown { background: #7f1d1d; color: #fca5a5; }
+  .btn-cancel:hover   { background: #3a3a5a; }
+  .btn-reboot:hover   { background: #b45309; }
+  .btn-shutdown:hover { background: #991b1b; }
+
+  /* ── Top row ── */
+  .top-row {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 12px; padding: 12px;
+  }
+  @media (max-width: 700px) { .top-row { grid-template-columns: 1fr; } }
+
+  /* ── Panels ── */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+  }
+  .panel-title {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 10px;
+  }
+  .panel-sub {
+    font-size: 10px; color: #4a4a6a; margin-top: -6px; margin-bottom: 10px;
+  }
+
+  /* ── Skyplot ── */
+  #skyplot { width: 100%; aspect-ratio: 1; max-width: 296px; display: block; margin: 0 auto; }
+
+  /* ── SNR bars ── */
+  .snr-header {
+    display: grid; grid-template-columns: 38px 1fr 36px;
+    gap: 6px; margin-bottom: 5px;
+  }
+  .snr-header span {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .snr-header .h-sat { text-align: right; }
+  .snr-header .h-db  { text-align: right; }
+  .snr-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 280px; }
+  .snr-row  { display: grid; grid-template-columns: 38px 1fr 36px; align-items: center; gap: 6px; }
+  .snr-id   { font-size: 11px; color: var(--muted); text-align: right; white-space: pre; }
+  .snr-id.u { color: var(--green); font-weight: bold; }
+  .bar-bg   { height: 11px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+  .b0 { background: #374151; }
+  .b1 { background: #f87171; }
+  .b2 { background: #fbbf24; }
+  .b3 { background: #4ade80; }
+  .b4 { background: #22d3ee; }
+  .snr-val   { font-size: 11px; color: var(--muted); text-align: right; }
+  .snr-val.u { color: var(--text); }
+
+  /* ── Time graphs ── */
+  .graph-wrap { padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .graph-lbl  { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px; }
+  .graph-sub  { font-size: 10px; color: #4a4a6a; margin-bottom: 6px; }
+  canvas.graph { width: 100%; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; }
+  .leg-item   { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .leg-swatch { width: 14px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── Position rows ── */
+  .pos-section { padding: 12px; }
+  .pos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .pos-card { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 10px 14px; }
+  .pos-card label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .pos-card .val { font-size: 17px; }
+  .dop-good { color: var(--green); }
+  .dop-ok   { color: var(--yellow); }
+  .dop-poor { color: var(--orange); }
+  .dop-bad  { color: var(--red); }
+  .maidenhead-val { font-size: 26px; color: var(--accent); letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+
+<!-- Shutdown modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>⚠ System Control</h2>
+    <p id="modal-host" style="color:var(--muted);font-size:12px;margin-bottom:4px"></p>
+    <p>Choose an action</p>
+    <div class="modal-btns">
+      <button class="btn-cancel"   onclick="closeModal()">Cancel</button>
+      <button class="btn-reboot"   onclick="doShutdown('reboot')">Reboot</button>
+      <button class="btn-shutdown" onclick="doShutdown('shutdown')">Shutdown</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <a href="/" onclick="window.location.href='http://'+window.location.hostname;return false;" style="color:#7070a0;font-size:12px;text-decoration:none;border:1px solid #2a2a4a;padding:3px 10px;border-radius:4px">← Home</a>
+  <h1>🛰 GPS Dashboard</h1>
+  <div class="hstat">Fix: <span id="h-fix" class="fix-no">—</span></div>
+  <div class="hstat">Mode: <span id="h-mode">—</span></div>
+  <div class="hstat">Sats: <span id="h-sats">—</span></div>
+  <div id="tick">↻ 2s</div>
+  <button id="shutdown-btn" onclick="openModal()">⏻</button>
+</header>
+
+<!-- Top row: skyplot | SNR bars -->
+<div class="top-row">
+  <div class="panel">
+    <div class="panel-title">Sky View — orbital trails (24 h)</div>
+    <canvas id="skyplot"></canvas>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Signal Strength — current snapshot</div>
+    <div class="snr-header">
+      <span class="h-sat">SAT</span>
+      <span></span>
+      <span class="h-db">dB</span>
+    </div>
+    <div class="snr-list" id="snr-list">
+      <div style="color:var(--muted)">Waiting…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Time graphs: elevation → azimuth → C/N₀ -->
+<div class="graph-wrap">
+  <div class="panel">
+    <div class="graph-lbl">Elevation over Time — 24 h window (current time at right)</div>
+    <canvas id="el-graph" class="graph"></canvas>
+    <div class="legend" id="el-legend"></div>
+  </div>
+  <div class="panel">
+    <div class="graph-lbl">Azimuth over Time — 24 h window (current time at right)</div>
+    <canvas id="az-graph" class="graph"></canvas>
+    <div class="legend" id="az-legend"></div>
+  </div>
+  <div class="panel">
+    <div class="graph-lbl">C/N₀ over Time — 24 h window (current time at right)</div>
+    <div class="graph-sub">Carrier-to-Noise density (dB-Hz) · 5-point smoothed · RSSI (dBm) not available from GPS chipset</div>
+    <canvas id="snr-graph" class="graph"></canvas>
+    <div class="legend" id="snr-legend"></div>
+  </div>
+</div>
+
+<!-- Position rows -->
+<div class="pos-section">
+  <div class="pos-grid">
+    <div class="pos-card"><label>Latitude</label><div class="val" id="p-lat">—</div></div>
+    <div class="pos-card"><label>Longitude</label><div class="val" id="p-lon">—</div></div>
+    <div class="pos-card"><label>Altitude</label><div class="val" id="p-alt">—</div></div>
+    <div class="pos-card"><label>Speed</label><div class="val" id="p-speed">—</div></div>
+    <div class="pos-card"><label>HDOP</label><div class="val" id="p-hdop">—</div></div>
+    <div class="pos-card"><label>VDOP</label><div class="val" id="p-vdop">—</div></div>
+    <div class="pos-card"><label>PDOP</label><div class="val" id="p-pdop">—</div></div>
+    <div class="pos-card"><label>Maidenhead</label><div class="val maidenhead-val" id="p-grid">——</div></div>
+  </div>
+</div>
+
+<script>
+document.getElementById('modal-host').textContent = window.location.hostname;
+
+const PALETTE = [
+  '#60a5fa','#4ade80','#fbbf24','#f87171','#a78bfa',
+  '#34d399','#fb923c','#38bdf8','#e879f9','#86efac',
+  '#fde68a','#fca5a5','#c4b5fd','#6ee7b7','#7dd3fc','#f9a8d4',
+];
+const _prnColour = {};
+let _prnIdx = 0;
+function colourFor(prn) {
+  if (!_prnColour[prn]) { _prnColour[prn] = PALETTE[_prnIdx++ % PALETTE.length]; }
+  return _prnColour[prn];
+}
+
+function getCtx(id, cssW, cssH) {
+  const c = document.getElementById(id);
+  const dpr = window.devicePixelRatio || 1;
+  c.width  = cssW * dpr; c.height = cssH * dpr;
+  c.style.width = cssW + 'px'; c.style.height = cssH + 'px';
+  const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+  return ctx;
+}
+
+function renderSkyplot(sats, history) {
+  const wrap = document.getElementById('skyplot').parentElement;
+  const SIZE = Math.min(wrap.clientWidth - 24, 296);
+  const cx = SIZE / 2, cy = SIZE / 2, R = SIZE / 2 - 16;
+  const ctx = getCtx('skyplot', SIZE, SIZE);
+  ctx.fillStyle = '#0a0a14'; ctx.fillRect(0, 0, SIZE, SIZE);
+  [0, 30, 60, 90].forEach(el => {
+    const r = R * (1 - el / 90);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(100,100,160,0.35)'; ctx.lineWidth = 0.8; ctx.stroke();
+  });
+  ctx.strokeStyle = 'rgba(100,100,160,0.25)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.stroke();
+  ctx.fillStyle = 'rgba(120,120,170,0.6)'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
+  [30, 60].forEach(el => {
+    const r = R * (1 - el / 90);
+    ctx.fillText(el + '°', cx + 3, cy - r + 10);
+  });
+  ctx.fillStyle = 'rgba(180,180,220,0.9)'; ctx.font = '11px monospace';
+  ctx.textAlign = 'center'; ctx.fillText('N', cx, cy - R - 4);
+  ctx.fillText('S', cx, cy + R + 13);
+  ctx.textAlign = 'left';  ctx.fillText('E', cx + R + 4, cy + 4);
+  ctx.textAlign = 'right'; ctx.fillText('W', cx - R - 4, cy + 4);
+  function toXY(az, el) {
+    const r = R * (1 - el / 90), rad = (az - 90) * Math.PI / 180;
+    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+  }
+  Object.keys(history || {}).forEach(prn => {
+    const pts = history[prn];
+    if (!pts || pts.length < 2) return;
+    ctx.strokeStyle = colourFor(prn); ctx.lineWidth = 1.2; ctx.globalAlpha = 0.35;
+    ctx.beginPath(); let pen = false;
+    for (let i = pts.length - 1; i >= 0; i--) {
+      const [age, az, el] = pts[i];
+      if (el < 0 || el > 90) { pen = false; continue; }
+      const [x, y] = toXY(az, el);
+      const prev = i < pts.length - 1 ? pts[i + 1][0] : age;
+      if (!pen || Math.abs(age - prev) > 90) { ctx.moveTo(x, y); pen = true; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  });
+  (sats || []).forEach(s => {
+    if (s.el == null || s.az == null) return;
+    const [x, y] = toXY(s.az, s.el);
+    const col    = colourFor(String(s.prn));
+    ctx.beginPath(); ctx.arc(x, y, s.used ? 7 : 5, 0, 2 * Math.PI);
+    ctx.fillStyle   = s.used ? col : 'rgba(60,60,80,0.9)';
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = '8px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(s.prn), x, y);
+  });
+  ctx.textBaseline = 'alphabetic';
+}
+
+const MAXAGE = 86400;
+const PAD    = { t: 8, b: 24, l: 30, r: 8 };
+
+function smooth(pts, yIdx, win) {
+  if (win <= 1) return pts.map(p => [p[0], p[yIdx]]);
+  return pts.map((p, i) => {
+    const seg = pts.slice(Math.max(0, i - win + 1), i + 1);
+    return [p[0], seg.reduce((s, x) => s + x[yIdx], 0) / seg.length];
+  });
+}
+
+function renderGraph(canvasId, legendId, history, yIdx, yMax, yLabels, smoothWin, cssH) {
+  const cssW = document.getElementById(canvasId).parentElement.clientWidth - 24;
+  const ctx  = getCtx(canvasId, cssW, cssH);
+  const gW   = cssW - PAD.l - PAD.r, gH = cssH - PAD.t - PAD.b;
+  ctx.fillStyle = '#0a0a14'; ctx.fillRect(0, 0, cssW, cssH);
+  ctx.font = '9px monospace';
+  yLabels.forEach(({v, label}) => {
+    const y = PAD.t + gH - (v / yMax) * gH;
+    ctx.strokeStyle = 'rgba(100,100,160,0.2)'; ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(PAD.l + gW, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(150,150,210,0.7)'; ctx.textAlign = 'right';
+    ctx.fillText(label, PAD.l - 3, y + 3);
+  });
+  for (let h = 4; h < 24; h += 4) {
+    const x = PAD.l + gW * (1 - h * 3600 / MAXAGE);
+    ctx.strokeStyle = 'rgba(100,100,160,0.15)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, PAD.t + gH); ctx.stroke();
+    ctx.fillStyle = 'rgba(140,140,200,0.55)'; ctx.textAlign = 'center';
+    ctx.fillText(`-${h}h`, x, PAD.t + gH + 12);
+  }
+  ctx.fillStyle = 'rgba(140,140,200,0.55)'; ctx.textAlign = 'right';
+  ctx.fillText('now', PAD.l + gW, PAD.t + gH + 12);
+  const items = [];
+  Object.keys(history || {}).forEach(prn => {
+    const raw = history[prn] || [];
+    if (raw.length < 2) return;
+    const pts = smooth(raw, yIdx, smoothWin);
+    const col = colourFor(prn);
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.85;
+    ctx.beginPath(); let pen = false;
+    for (let i = pts.length - 1; i >= 0; i--) {
+      const [age, val] = pts[i];
+      if (age > MAXAGE) continue;
+      const x = PAD.l + gW * (1 - age / MAXAGE);
+      const y = PAD.t + gH - (Math.max(0, Math.min(yMax, val)) / yMax) * gH;
+      const prev = i < pts.length - 1 ? pts[i + 1][0] : age;
+      if (!pen || Math.abs(age - prev) > 90) { ctx.moveTo(x, y); pen = true; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
+    items.push(`<div class="leg-item"><div class="leg-swatch" style="background:${col}"></div>${prn}</div>`);
+  });
+  ctx.strokeStyle = 'rgba(80,80,130,0.4)'; ctx.lineWidth = 0.8;
+  ctx.strokeRect(PAD.l, PAD.t, gW, gH);
+  document.getElementById(legendId).innerHTML = items.join('');
+}
+
+let lastHistory = {};
+let tickCount   = 0;
+
+async function fetchCurrent() {
+  try {
+    const d = await fetch('/api/gps').then(r => r.json());
+    renderHeader(d);
+    renderSkyplot(d.sky.satellites, lastHistory);
+    renderSnrBars(d.sky.satellites);
+    renderPositionRows(d);
+  } catch(e) { console.error(e); }
+}
+
+async function fetchHistory() {
+  try {
+    lastHistory = await fetch('/api/gps_history').then(r => r.json());
+    const elLabels  = [{v:0,label:'0°'},{v:30,label:'30°'},{v:60,label:'60°'},{v:90,label:'90°'}];
+    const azLabels  = [{v:0,label:'0°'},{v:90,label:'90°'},{v:180,label:'180°'},{v:270,label:'270°'},{v:360,label:'360°'}];
+    const snrLabels = [{v:0,label:'0'},{v:10,label:'10'},{v:20,label:'20'},{v:30,label:'30'},{v:40,label:'40'},{v:50,label:'50dB'}];
+    renderGraph('el-graph',  'el-legend',  lastHistory, 2, 90,  elLabels,  1, 180);
+    renderGraph('az-graph',  'az-legend',  lastHistory, 1, 360, azLabels,  1, 180);
+    renderGraph('snr-graph', 'snr-legend', lastHistory, 3, 50,  snrLabels, 5, 180);
+    renderSkyplot(null, lastHistory);
+  } catch(e) { console.error(e); }
+}
+
+function renderHeader(d) {
+  const fixEl = document.getElementById('h-fix');
+  const modes = ['—', 'No fix', '2D fix', '3D fix'];
+  if (d.position.fix) { fixEl.textContent = 'OK'; fixEl.className = 'fix-ok'; }
+  else                { fixEl.textContent = 'No fix'; fixEl.className = 'fix-no'; }
+  document.getElementById('h-mode').textContent = modes[d.position.mode] || '—';
+  document.getElementById('h-sats').textContent = `${d.sky.used_count} / ${d.sky.sat_count}`;
+}
+
+function renderSnrBars(sats) {
+  const el = document.getElementById('snr-list');
+  if (!sats || sats.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted)">No satellites</div>';
+    return;
+  }
+  el.innerHTML = sats.map(s => {
+    const ss   = s.ss != null ? s.ss : 0;
+    const pct  = Math.min(100, (ss / 50) * 100);
+    const bc   = ss === 0 ? 'b0' : ss < 20 ? 'b1' : ss < 30 ? 'b2' : ss < 40 ? 'b3' : 'b4';
+    const col  = colourFor(String(s.prn));
+    const u    = s.used;
+    const prn  = s.prn != null ? String(s.prn).padStart(2, '\u00a0') : ' ?';
+    return `<div class="snr-row" title="PRN ${s.prn} · El ${s.el??'?'}° · Az ${s.az??'?'}° · ${u?'used in fix':'not used'}">
+      <div class="snr-id${u?' u':''}" style="${u?'color:'+col+';':''}">${u?'●':'○'}${prn}</div>
+      <div class="bar-bg"><div class="bar-fill ${bc}" style="width:${pct}%"></div></div>
+      <div class="snr-val${u?' u':''}">${s.ss??'—'}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderPositionRows(d) {
+  const p = d.position;
+  setText('p-lat',   p.lat   != null ? p.lat.toFixed(6)        + '°'    : '—');
+  setText('p-lon',   p.lon   != null ? p.lon.toFixed(6)        + '°'    : '—');
+  setText('p-alt',   p.alt   != null ? p.alt.toFixed(1)        + ' m'   : '—');
+  setText('p-speed', p.speed != null ? (p.speed*3.6).toFixed(1)+ ' km/h': '—');
+  setText('p-grid',  d.maidenhead || '——');
+  renderDOP('p-hdop', d.sky.hdop);
+  renderDOP('p-vdop', d.sky.vdop);
+  renderDOP('p-pdop', d.sky.pdop);
+}
+
+function renderDOP(id, val) {
+  const el = document.getElementById(id);
+  if (!val) { el.textContent = '—'; el.className = 'val'; return; }
+  const v = parseFloat(val);
+  el.textContent = val;
+  el.className   = 'val ' + (v < 2 ? 'dop-good' : v < 5 ? 'dop-ok' : v < 10 ? 'dop-poor' : 'dop-bad');
+}
+
+function setText(id, v) { document.getElementById(id).textContent = v; }
+
+function openModal()  { document.getElementById('modal-overlay').classList.add('active'); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('active'); }
+function doShutdown(action) {
+  closeModal();
+  fetch('/api/shutdown', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action}),
+  }).then(() => {
+    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;
+      height:100vh;color:#7070a0;font-family:monospace">
+      ${action==='reboot'?'↻ Rebooting…':'⏻ Shutting down…'}</div>`;
+  }).catch(()=>{});
+}
+
+let cd = 2;
+document.addEventListener('DOMContentLoaded', () => {
+  fetchCurrent(); fetchHistory();
+  setInterval(() => {
+    cd--;
+    document.getElementById('tick').textContent = `↻ ${cd}s`;
+    if (cd <= 0) {
+      fetchCurrent(); cd = 2; tickCount++;
+      if (tickCount % 15 === 0) fetchHistory();
+    }
+  }, 1000);
+});
+</script>
+</body>
+</html>

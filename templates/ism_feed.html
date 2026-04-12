@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Feed — raspi81</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<style>
+body { display:flex; flex-direction:column; height:100vh; overflow:hidden;
+       padding:0; gap:0; }
+
+#topbar {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:10px 14px; border-bottom:1px solid var(--border-dim);
+    background:var(--panel); flex-shrink:0;
+}
+#topbar h1 { font-size:13px; color:var(--heading); letter-spacing:2px;
+             text-transform:uppercase; white-space:nowrap; }
+.back-btn {
+    padding:4px 12px; border:1px solid var(--btn-border);
+    background:var(--btn-bg); color:var(--btn-label);
+    border-radius:4px; text-decoration:none; font-size:11px;
+    flex-shrink:0;
+}
+.back-btn:hover { background:var(--btn-bg-h); }
+#gps-badge { font-size:11px; color:var(--muted); margin-left:auto; white-space:nowrap; }
+#freq-badge { font-size:11px; color:var(--muted); white-space:nowrap; }
+#gps-badge .fix { color:var(--green-bright); }
+#gps-badge .nofix { color:var(--value-warn); }
+
+#bandbar {
+    display:flex; gap:8px; flex-wrap:wrap; padding:7px 14px;
+    border-bottom:1px solid var(--border-dim);
+    background:var(--panel); flex-shrink:0; align-items:center;
+}
+.band-btn {
+    padding:4px 12px; border:1px solid var(--border-dim);
+    background:var(--btn-bg); color:var(--muted);
+    border-radius:4px; cursor:pointer; font-size:11px;
+    letter-spacing:1px; font-weight:bold;
+    transition:background 0.1s, border-color 0.1s, color 0.1s;
+}
+.band-btn.active { border-color:#44aa44; background:#0d200d; color:#88ee88; }
+.band-btn:hover:not(.active) { border-color:var(--border); color:var(--text); }
+#band-msg { font-size:11px; color:var(--muted); margin-left:4px; min-width:120px; }
+#band-msg.ok  { color:var(--value-green); }
+#band-msg.err { color:var(--value-alert); }
+
+#filterbar {
+    display:flex; gap:8px; flex-wrap:wrap; padding:8px 14px;
+    border-bottom:1px solid var(--border-dim);
+    background:var(--panel); flex-shrink:0; align-items:center;
+}
+#filterbar .lbl { font-size:10px; color:var(--muted);
+                  text-transform:uppercase; letter-spacing:2px; }
+.flt-btn {
+    padding:5px 14px; border:1px solid var(--border-dim);
+    background:var(--btn-bg); color:var(--muted);
+    border-radius:4px; cursor:pointer; font-size:11px;
+    letter-spacing:1px; text-transform:uppercase;
+    transition:background 0.1s, border-color 0.1s, color 0.1s;
+}
+.flt-btn.active { border-color:var(--btn-border-h);
+                  background:var(--btn-bg-h); color:var(--btn-label); }
+.flt-btn:hover  { border-color:var(--border); color:var(--text); }
+
+#pkt-count { font-size:11px; color:var(--muted); }
+#pkt-count span { color:var(--value-green); font-weight:bold; }
+
+.clear-btn {
+    margin-left:auto; padding:5px 14px; border:1px solid #664400;
+    background:#1a1000; color:var(--value-warn);
+    border-radius:4px; cursor:pointer; font-size:11px;
+    letter-spacing:1px; text-transform:uppercase;
+    transition:background 0.1s;
+}
+.clear-btn:hover { background:#2a1800; }
+
+#table-wrap { flex:1; overflow-y:auto; overflow-x:auto; }
+table { width:100%; border-collapse:collapse; min-width:700px; }
+thead { position:sticky; top:0; z-index:5; background:var(--panel); }
+th {
+    padding:7px 8px; text-align:left; font-size:10px;
+    color:var(--muted); letter-spacing:2px; text-transform:uppercase;
+    border-bottom:1px solid var(--border-dim); white-space:nowrap;
+}
+td {
+    padding:5px 8px; font-size:12px; color:var(--text);
+    border-bottom:1px solid var(--border-dim); white-space:nowrap;
+    max-width:220px; overflow:hidden; text-overflow:ellipsis;
+    vertical-align:middle;
+}
+tr { transition: background-color 1.4s ease; }
+tr.new-row { background-color: #1a1a38; transition: none; }
+tr:hover td { background:rgba(74,74,138,0.15); }
+
+.cat-badge {
+    display:inline-block; padding:2px 7px; border-radius:3px;
+    font-size:10px; letter-spacing:1px; text-transform:uppercase;
+}
+.cat-sensor { background:#0d2a0d; color:#66cc66; border:1px solid #1a5a1a; }
+.cat-tpms   { background:#2a1a00; color:#ccaa44; border:1px solid #5a3a00; }
+.cat-remote { background:#1a0a2a; color:#aa88cc; border:1px solid #3a1a5a; }
+.cat-other  { background:#1a1a2a; color:#8888aa; border:1px solid #3a3a5a; }
+
+.rssi { color:var(--muted); font-size:11px; }
+.rssi.good { color:var(--value-green); }
+.rssi.weak { color:var(--value-warn); }
+
+.gps-dot { font-size:10px; }
+.gps-dot.yes { color:var(--green-bright); }
+.gps-dot.no  { color:#555; }
+
+#empty-msg {
+    text-align:center; color:var(--muted); padding:40px;
+    font-size:13px; display:none;
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">← Home</a>
+    <h1>📡 Live Feed</h1>
+    <div id="freq-badge">RX: <span id="freq-val" style="color:var(--value-green);font-weight:bold;">—</span></div>
+    <div id="gps-badge">GPS: <span id="gps-status" class="nofix">NO GPS</span></div>
+</div>
+
+<div id="bandbar">
+    <span class="lbl">Band:</span>
+    <button class="band-btn" data-band="315">315 MHz</button>
+    <button class="band-btn" data-band="345">345 MHz</button>
+    <button class="band-btn active" data-band="433">433 MHz</button>
+    <button class="band-btn" data-band="868">868 MHz</button>
+    <button class="band-btn" data-band="915">915 MHz</button>
+    <span id="band-msg"></span>
+</div>
+
+<div id="filterbar">
+    <span class="lbl">Filter:</span>
+    <button class="flt-btn active" data-cat="all">All</button>
+    <button class="flt-btn" data-cat="sensor">🌡 Weather / Sensors</button>
+    <button class="flt-btn" data-cat="tpms">🚗 TPMS</button>
+    <button class="flt-btn" data-cat="remote">📻 Remote Controls</button>
+    <button class="flt-btn" data-cat="other">❓ Other</button>
+    <div id="pkt-count">Showing <span id="shown-count">0</span> rows</div>
+    <button class="clear-btn" onclick="clearDisplay()">🗑 Clear</button>
+</div>
+
+<div id="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Time (UTC)</th>
+                <th>Category</th>
+                <th>Model</th>
+                <th>Device ID</th>
+                <th>Ch</th>
+                <th>Data</th>
+                <th>RSSI</th>
+                <th>📍</th>
+            </tr>
+        </thead>
+        <tbody id="feed-body"></tbody>
+    </table>
+    <div id="empty-msg">No signals received yet on this band.</div>
+</div>
+
+<script>
+const MAX_ROWS  = 200;
+const tbody     = document.getElementById('feed-body');
+const emptyMsg  = document.getElementById('empty-msg');
+const shownCnt  = document.getElementById('shown-count');
+let   activeFilter = 'all';
+let   allRows   = [];
+let   ws, wsRetry;
+
+document.querySelectorAll('.flt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.flt-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeFilter = btn.dataset.cat;
+        applyFilter();
+    });
+});
+
+function applyFilter() {
+    let shown = 0;
+    allRows.forEach(r => {
+        const visible = (activeFilter === 'all' || r.category === activeFilter);
+        r.tr.style.display = visible ? '' : 'none';
+        if (visible) shown++;
+    });
+    shownCnt.textContent = shown;
+    emptyMsg.style.display = (shown === 0 && allRows.length > 0) ? 'block' : 'none';
+}
+
+function catBadge(cat) {
+    const labels = { sensor:'🌡 Sensor', tpms:'🚗 TPMS',
+                     remote:'📻 Remote', other:'❓ Other' };
+    return `<span class="cat-badge cat-${cat}">${labels[cat] || cat}</span>`;
+}
+
+function rssiClass(v) {
+    if (v === null || v === undefined) return '';
+    return v > -80 ? 'good' : 'weak';
+}
+
+function extractData(json_str) {
+    try {
+        const d = JSON.parse(json_str);
+        const parts = [];
+        if (d.temperature_C !== undefined) parts.push(`${d.temperature_C.toFixed(1)}°C`);
+        if (d.humidity !== undefined) parts.push(`${d.humidity}%`);
+        if (d.rain_mm !== undefined) parts.push(`Rain:${d.rain_mm}mm`);
+        if (d.wind_avg_m_s !== undefined) parts.push(`Wind:${d.wind_avg_m_s}m/s`);
+        if (d.pressure_hPa !== undefined) parts.push(`${d.pressure_hPa}hPa`);
+        if (d.battery_ok !== undefined) parts.push(d.battery_ok ? '🔋OK' : '🔋LOW');
+        if (parts.length === 0) {
+            const skip = new Set(['time','model','id','protocol','rssi','snr',
+                                  'noise','channel','device','mic']);
+            for (const [k,v] of Object.entries(d)) {
+                if (!skip.has(k) && parts.length < 4)
+                    parts.push(`${k}:${v}`);
+            }
+        }
+        return parts.join('  ') || '—';
+    } catch { return '—'; }
+}
+
+function addRow(sig, flash) {
+    const tr = document.createElement('tr');
+    const rssiVal = sig.rssi !== null && sig.rssi !== undefined
+        ? sig.rssi.toFixed(1) : '—';
+    const timeStr = sig.ts ? sig.ts.replace('T',' ').replace(/\.\d+Z$/,'Z') : '—';
+    tr.innerHTML =
+        `<td>${timeStr}</td>` +
+        `<td>${catBadge(sig.category || 'other')}</td>` +
+        `<td title="${sig.model}">${sig.model || '—'}</td>` +
+        `<td>${sig.device_id || '—'}</td>` +
+        `<td>${sig.channel !== null && sig.channel !== undefined ? sig.channel : '—'}</td>` +
+        `<td title="${sig.data_json || ''}">${extractData(sig.data_json)}</td>` +
+        `<td class="rssi ${rssiClass(sig.rssi)}">${rssiVal} dB</td>` +
+        `<td class="gps-dot ${sig.gps_fix ? 'yes' : 'no'}">${sig.gps_fix ? '📍' : '·'}</td>`;
+
+    if (flash) {
+        tr.classList.add('new-row');
+        requestAnimationFrame(() => { requestAnimationFrame(() => { tr.classList.remove('new-row'); }); });
+    }
+
+    tbody.insertBefore(tr, tbody.firstChild);
+    allRows.unshift({ category: sig.category || 'other', tr });
+
+    while (allRows.length > MAX_ROWS) {
+        const old = allRows.pop();
+        old.tr.remove();
+    }
+
+    const visible = (activeFilter === 'all' || (sig.category || 'other') === activeFilter);
+    if (!visible) tr.style.display = 'none';
+    applyFilter();
+}
+
+function clearDisplay() {
+    allRows.forEach(r => r.tr.remove());
+    allRows = [];
+    applyFilter();
+    emptyMsg.style.display = 'block';
+    emptyMsg.textContent = 'Display cleared — new signals will appear as they arrive.';
+}
+
+document.querySelectorAll('.band-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const band = btn.dataset.band;
+        const msg = document.getElementById('band-msg');
+        msg.className = '';
+        msg.textContent = 'Switching…';
+        fetch('/api/band', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ band }),
+        }).then(r => r.json()).then(d => {
+            if (d.ok) {
+                msg.className = 'ok';
+                msg.textContent = 'Active: ' + (d.frequency / 1e6).toFixed(2) + ' MHz';
+                document.getElementById('freq-val').textContent =
+                    (d.frequency / 1e6).toFixed(2) + ' MHz';
+                document.querySelectorAll('.band-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.band === band));
+                clearDisplay();
+            } else {
+                msg.className = 'err';
+                msg.textContent = 'Error: ' + d.error;
+            }
+        }).catch(() => { document.getElementById('band-msg').className = 'err';
+                         document.getElementById('band-msg').textContent = 'Network error'; });
+    });
+});
+
+function connect() {
+    ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onopen  = () => clearTimeout(wsRetry);
+    ws.onclose = () => { wsRetry = setTimeout(connect, 4000); };
+    ws.onerror = () => {};
+    ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (msg.type === 'signal') addRow(msg.data, true);
+        if (msg.type === 'gps')    updateGpsBadge(msg.data);
+        if (msg.type === 'status') {
+            const mhz = (msg.data.frequency / 1e6).toFixed(2);
+            document.getElementById('freq-val').textContent = mhz + ' MHz';
+            document.querySelectorAll('.band-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.band === msg.data.band));
+        }
+    };
+}
+
+function updateGpsBadge(d) {
+    const el = document.getElementById('gps-status');
+    el.className = d.status === 'FIX' ? 'fix' : 'nofix';
+    el.textContent = d.status === 'FIX'
+        ? `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}` : d.status;
+}
+
+fetch('/api/signals?limit=200').then(r => r.json()).then(rows => {
+    rows.reverse().forEach(sig => addRow(sig, false));
+    if (allRows.length === 0) emptyMsg.style.display = 'block';
+}).catch(() => {});
+
+connect();
+</script>
+</body>
+</html>

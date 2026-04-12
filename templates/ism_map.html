@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Map — raspi81</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin="">
+<style>
+html, body { height:100%; overflow:hidden; padding:0; }
+
+#topbar {
+    position:fixed; inset:0 0 auto 0; height:48px; z-index:1000;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:0 12px; background:#080818;
+    border-bottom:1px solid var(--border-dim);
+}
+#topbar h1 { font-size:12px; color:var(--heading);
+             letter-spacing:2px; text-transform:uppercase; }
+.back-btn {
+    padding:4px 12px; border:1px solid var(--btn-border);
+    background:var(--btn-bg); color:var(--btn-label);
+    border-radius:4px; text-decoration:none; font-size:11px;
+    flex-shrink:0;
+}
+.back-btn:hover { background:var(--btn-bg-h); }
+
+#track-btn {
+    padding:5px 14px; border-radius:4px; cursor:pointer;
+    font-size:11px; letter-spacing:1px; text-transform:uppercase;
+    border:1px solid var(--border-dim); background:var(--btn-bg);
+    color:var(--muted); transition:background 0.1s, border-color 0.1s, color 0.1s;
+}
+#track-btn.active { border-color:#44aa44; background:#0d200d; color:#88ee88; }
+#center-btn {
+    padding:5px 14px; border-radius:4px; cursor:pointer;
+    font-size:11px; letter-spacing:1px; text-transform:uppercase;
+    border:1px solid var(--btn-border); background:var(--btn-bg);
+    color:var(--btn-label); transition:background 0.1s;
+}
+#center-btn:hover { background:var(--btn-bg-h); }
+
+#gps-status { margin-left:auto; font-size:11px; color:var(--muted); white-space:nowrap; }
+#gps-status .fix   { color:var(--green-bright); }
+#gps-status .nofix { color:var(--value-warn); }
+#sig-count { font-size:11px; color:var(--muted); white-space:nowrap; }
+#sig-count span { color:var(--value-green); }
+
+#map { position:fixed; inset:48px 0 0 0; }
+
+.leaflet-tile { image-rendering:auto; }
+.gps-marker-icon {
+    width:16px; height:16px; border-radius:50%;
+    background:#33aaff; border:3px solid #80ccff;
+    box-shadow:0 0 0 2px rgba(50,150,255,0.3);
+}
+.tx-dot { width:12px; height:12px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); }
+.tx-dot.sensor { background:#44aa44; }
+.tx-dot.tpms   { background:#ddaa44; }
+.tx-dot.remote { background:#aa66cc; }
+.tx-dot.other  { background:#7788aa; }
+
+.leaflet-popup-content-wrapper {
+    background:#0d0d20; border:1px solid #4a4a8a;
+    border-radius:6px; color:#f0f0ff;
+}
+.leaflet-popup-tip { background:#0d0d20; }
+.leaflet-popup-content { font-family:monospace; font-size:12px; }
+.popup-model  { color:#8888cc; font-size:11px; margin-bottom:4px; }
+.popup-val    { color:#88ee88; }
+.popup-muted  { color:#aaaadd; }
+.popup-data   { margin-top:6px; padding-top:6px; border-top:1px solid #2a2a5a; }
+.popup-data table { width:100%; }
+.popup-data td { padding:1px 4px; }
+.popup-data td:first-child { color:#aaaadd; }
+.popup-data td:last-child  { color:#88ee88; }
+.leaflet-tile-error { background:#0a0a18; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">← Home</a>
+    <h1>🗺️ Map</h1>
+    <button id="track-btn" title="Follow GPS position">📍 Track: OFF</button>
+    <button id="center-btn" title="Centre on current position">⊕ Centre</button>
+    <div id="gps-status">GPS: <span id="gps-txt" class="nofix">NO GPS</span></div>
+    <div id="sig-count">Transmitters: <span id="tx-count">0</span></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+const map = L.map('map', {
+    center: [48.137, 11.575],
+    zoom: 13,
+    zoomControl: true,
+    preferCanvas: true,
+});
+
+L.tileLayer('/tiles/{z}/{x}/{y}', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+    maxZoom: 19,
+    errorTileUrl: '',
+}).addTo(map);
+
+const gpsIcon = L.divIcon({
+    className: '',
+    html: '<div class="gps-marker-icon"></div>',
+    iconSize: [16, 16], iconAnchor: [8, 8],
+});
+let gpsMarker = null;
+let tracking  = false;
+let lastGpsPos = null;
+
+document.getElementById('track-btn').addEventListener('click', () => {
+    tracking = !tracking;
+    const btn = document.getElementById('track-btn');
+    if (tracking) {
+        btn.classList.add('active');
+        btn.textContent = '📍 Track: ON';
+        if (lastGpsPos) map.setView([lastGpsPos.lat, lastGpsPos.lon]);
+    } else {
+        btn.classList.remove('active');
+        btn.textContent = '📍 Track: OFF';
+    }
+});
+
+document.getElementById('center-btn').addEventListener('click', () => {
+    if (lastGpsPos) map.setView([lastGpsPos.lat, lastGpsPos.lon]);
+});
+
+const txMarkers = {};
+const catColour = { sensor:'#44aa44', tpms:'#ddaa44', remote:'#aa66cc', other:'#7788aa' };
+
+function makeTxIcon(cat) {
+    const c = catColour[cat] || '#7788aa';
+    return L.divIcon({
+        className: '',
+        html: `<div class="tx-dot ${cat}" style="background:${c}"></div>`,
+        iconSize: [12, 12], iconAnchor: [6, 6],
+    });
+}
+
+function popupContent(tx) {
+    let dataRows = '';
+    try {
+        const d = JSON.parse(tx.last_data_json || '{}');
+        const skip = new Set(['time','model','id','protocol','device','mic','rssi','snr','noise','channel']);
+        for (const [k, v] of Object.entries(d)) {
+            if (!skip.has(k))
+                dataRows += `<tr><td>${k}</td><td>${v}</td></tr>`;
+        }
+    } catch {}
+    const seen = tx.first_seen ? tx.first_seen.replace('T',' ').slice(0,19) : '—';
+    const last = tx.last_seen  ? tx.last_seen.replace('T',' ').slice(0,19) : '—';
+    return `<div class="popup-model">${tx.model || 'Unknown'}</div>
+        <b style="color:#e8e8ff">${tx.model || '—'}</b><br>
+        <span class="popup-muted">ID:</span> <span class="popup-val">${tx.device_id || '—'}</span><br>
+        <span class="popup-muted">Packets:</span> <span class="popup-val">${tx.packet_count}</span><br>
+        <span class="popup-muted">First seen:</span> <span class="popup-val">${seen}</span><br>
+        <span class="popup-muted">Last seen:</span>  <span class="popup-val">${last}</span>
+        ${dataRows ? `<div class="popup-data"><table>${dataRows}</table></div>` : ''}`;
+}
+
+function upsertTxMarker(tx) {
+    if (!tx.last_lat || !tx.last_lon || !tx.last_gps_fix) return;
+    const key = `${tx.model}|${tx.device_id}`;
+    if (txMarkers[key]) {
+        txMarkers[key].setLatLng([tx.last_lat, tx.last_lon]);
+        txMarkers[key].setPopupContent(popupContent(tx));
+    } else {
+        const cat = tx.category || 'other';
+        const m = L.marker([tx.last_lat, tx.last_lon], { icon: makeTxIcon(cat) })
+            .bindPopup(popupContent(tx))
+            .addTo(map);
+        txMarkers[key] = m;
+    }
+    document.getElementById('tx-count').textContent = Object.keys(txMarkers).length;
+}
+
+fetch('/api/transmitters').then(r => r.json()).then(rows => {
+    rows.forEach(upsertTxMarker);
+}).catch(() => {});
+
+let ws, wsRetry;
+function connect() {
+    ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onopen  = () => clearTimeout(wsRetry);
+    ws.onclose = () => { wsRetry = setTimeout(connect, 4000); };
+    ws.onerror = () => {};
+    ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (msg.type === 'gps')    handleGps(msg.data);
+        if (msg.type === 'signal') handleSignal(msg.data);
+    };
+}
+
+function handleGps(d) {
+    const txt = document.getElementById('gps-txt');
+    if (d.status === 'FIX' && d.lat && d.lon) {
+        txt.className = 'fix';
+        txt.textContent = `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}`;
+        lastGpsPos = d;
+        if (gpsMarker) { gpsMarker.setLatLng([d.lat, d.lon]); }
+        else { gpsMarker = L.marker([d.lat, d.lon], { icon: gpsIcon })
+                    .bindTooltip('Your position', { permanent: false }).addTo(map); }
+        if (tracking) map.setView([d.lat, d.lon]);
+    } else {
+        txt.className = 'nofix';
+        txt.textContent = d.status;
+        if (gpsMarker) { gpsMarker.remove(); gpsMarker = null; }
+    }
+}
+
+function handleSignal(sig) {
+    if (!sig.gps_fix) return;
+    scheduleTransmitterRefresh();
+}
+
+let _txRefreshTimer = null;
+function scheduleTransmitterRefresh() {
+    if (_txRefreshTimer) return;
+    _txRefreshTimer = setTimeout(() => {
+        _txRefreshTimer = null;
+        fetch('/api/transmitters').then(r => r.json()).then(rows => {
+            rows.forEach(upsertTxMarker);
+        }).catch(() => {});
+    }, 3000);
+}
+
+connect();
+</script>
+</body>
+</html>

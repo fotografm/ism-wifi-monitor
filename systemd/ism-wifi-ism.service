@@ -1,0 +1,15 @@
+[Unit]
+Description=raspi81 ISM Monitor (port 8092)
+After=network.target rfkill-unblock.service
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/ism-wifi-monitor
+ExecStartPre=/bin/sleep 15
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/ism_monitor.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=raspi81 GPS Dashboard (port 8093)
+After=network.target rfkill-unblock.service
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/ism-wifi-monitor
+ExecStartPre=/bin/sleep 10
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/gps_web.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
