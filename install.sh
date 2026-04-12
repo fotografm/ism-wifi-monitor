@@ -27,6 +27,7 @@ apt-get update -qq
 apt-get install -y \
     python3 python3-venv \
     rtl-433 \
+    sqlite3 \
     iw rfkill \
     gpsd gpsd-clients
 
