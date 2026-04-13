@@ -1,0 +1,14 @@
+[Unit]
+Description=raspi81 Terminal Server (port 8096)
+After=network.target
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/ism-wifi-monitor
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/terminal_server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

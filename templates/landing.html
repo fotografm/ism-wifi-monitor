@@ -194,9 +194,21 @@ body { display:flex; flex-direction:column; align-items:center;
 
 <!-- WiFi History section -->
     <a href="#" onclick="window.location.href='http://'+location.hostname+':8095';return false;" class="grid-btn">
-        <span class="icon">📡</span>
+        <span class="icon">&#128246;</span>
         <span class="label">WiFi History</span>
         <span class="sub">Probe requests + device fingerprints</span>
+    </a>
+
+<!-- Tools section -->
+    <a href="#" onclick="window.open('http://'+location.hostname+':8096','_blank');return false;" class="grid-btn">
+        <span class="icon">&#x2328;</span>
+        <span class="label">Terminal</span>
+        <span class="sub">Shell access — opens in new tab</span>
+    </a>
+    <a href="#" onclick="window.open('http://'+location.hostname+':8097','_blank');return false;" class="grid-btn">
+        <span class="icon">&#x1F4DD;</span>
+        <span class="label">Notes</span>
+        <span class="sub">Persistent text notes</span>
     </a>
 </div>
 

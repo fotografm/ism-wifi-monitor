@@ -1,0 +1,14 @@
+[Unit]
+Description=raspi81 Notes Server (port 8097)
+After=network.target
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/ism-wifi-monitor
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/notes_server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

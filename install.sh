@@ -54,6 +54,8 @@ cp "$REPO_DIR"/wifi_history_monitor.py "$DEPLOY_DIR/"
 cp "$REPO_DIR"/wifi_history_web.py     "$DEPLOY_DIR/"
 cp "$REPO_DIR"/ie_parser.py            "$DEPLOY_DIR/"
 cp "$REPO_DIR"/oui.py                  "$DEPLOY_DIR/"
+cp "$REPO_DIR"/terminal_server.py      "$DEPLOY_DIR/"
+cp "$REPO_DIR"/notes_server.py         "$DEPLOY_DIR/"
 cp "$REPO_DIR"/raspi-style.css     "$DEPLOY_DIR/"
 cp "$REPO_DIR"/templates/*.html    "$DEPLOY_DIR/templates/"
 chown -R user:user "$DEPLOY_DIR"
@@ -109,6 +111,8 @@ cp "$REPO_DIR"/systemd/ism-wifi-wifi-scan.service    "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-wifi-web.service     "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-history-monitor.service "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-history-web.service     "$SVCDIR/"
+cp "$REPO_DIR"/systemd/ism-wifi-terminal.service        "$SVCDIR/"
+cp "$REPO_DIR"/systemd/ism-wifi-notes.service           "$SVCDIR/"
 
 systemctl daemon-reload
 
@@ -121,7 +125,9 @@ for svc in \
     ism-wifi-wifi-scan \
     ism-wifi-wifi-web \
     ism-wifi-history-monitor \
-    ism-wifi-history-web
+    ism-wifi-history-web \
+    ism-wifi-terminal \
+    ism-wifi-notes
 do
     systemctl enable "$svc"
     echo "     Enabled: $svc"

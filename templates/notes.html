@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>raspi81 &mdash; Notes</title>
+<link rel="stylesheet" href="http://placeholder/raspi-style.css">
+<style>
+/* Notes-specific overrides on top of raspi-style.css vars */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: monospace;
+    font-size: 14px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Title bar ───────────────────────────────────────────────────── */
+#titlebar {
+    height: 48px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 10px;
+}
+#titlebar h1 {
+    font-size: 12px;
+    font-weight: normal;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--heading);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+#search-wrap { position: relative; width: 200px; flex-shrink: 0; }
+#search {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: monospace;
+    font-size: 12px;
+    padding: 5px 24px 5px 8px;
+    outline: none;
+}
+#search:focus { border-color: var(--border-focus); }
+#search::placeholder { color: var(--dim); }
+#search-clear {
+    position: absolute;
+    right: 5px; top: 50%;
+    transform: translateY(-50%);
+    background: none; border: none;
+    color: var(--muted); cursor: pointer;
+    font-size: 12px; display: none; padding: 0;
+}
+#search-clear.visible { display: block; }
+#search-clear:hover { color: var(--text); }
+#match-count { font-size: 11px; color: var(--muted); white-space: nowrap; min-width: 50px; }
+#titlebar-spacer { flex: 1; }
+#save-status { font-size: 10px; letter-spacing: 1px; white-space: nowrap;
+               min-width: 60px; text-align: right; color: var(--value-green); }
+#new-btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    border-radius: 3px;
+    color: var(--btn-label);
+    font-family: monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+#new-btn:hover { background: var(--btn-bg-h); border-color: var(--btn-border-h); }
+
+/* ── Layout ──────────────────────────────────────────────────────── */
+#layout { flex: 1; display: flex; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+#notes-list {
+    width: 240px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--panel);
+}
+#notes-list::-webkit-scrollbar { width: 4px; }
+#notes-list::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 2px; }
+
+.note-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-dim);
+    cursor: pointer;
+}
+.note-item:hover { background: #111130; }
+.note-item.active { background: #181838; border-left: 3px solid var(--heading); }
+.note-item.hidden { display: none; }
+.note-item-title {
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+}
+.note-item.active .note-item-title { color: #ffffff; }
+.note-item-preview {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.note-item-time { font-size: 10px; color: var(--dim); margin-top: 3px; }
+mark { background: #3a3a00; color: #ffff66; border-radius: 2px; padding: 0 1px; }
+
+/* ── Editor ──────────────────────────────────────────────────────── */
+#editor-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+
+#editor-toolbar {
+    display: none;
+    align-items: center;
+    padding: 8px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border-dim);
+    flex-shrink: 0;
+    gap: 10px;
+}
+#note-title-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--value-white, #e8e8ff);
+    font-family: monospace;
+    font-size: 14px;
+    letter-spacing: 1px;
+    min-width: 0;
+}
+#note-title-input::placeholder { color: var(--dim); }
+
+#delete-btn {
+    background: none;
+    border: 1px solid #cc3333;
+    border-radius: 3px;
+    color: var(--value-alert);
+    font-family: monospace;
+    font-size: 11px;
+    padding: 3px 10px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+#delete-btn:hover { border-color: #ff4444; color: #ff9999; background: #1a0808; }
+#delete-btn:disabled { opacity: 0.25; cursor: default; pointer-events: none; }
+
+#note-content-input {
+    display: none;
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    padding: 16px;
+    resize: none;
+}
+#note-content-input::placeholder { color: var(--dim); }
+#note-content-input:focus { color: #ffffff; }
+
+#no-note {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--dim);
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+
+<div id="titlebar">
+    <h1>raspi81 &mdash; Notes</h1>
+    <div id="search-wrap">
+        <input id="search" type="text" placeholder="Search&hellip;"
+               oninput="onSearch(this.value)" autocomplete="off" spellcheck="false">
+        <button id="search-clear" onclick="clearSearch()" title="Clear">&#x2715;</button>
+    </div>
+    <span id="match-count"></span>
+    <span id="titlebar-spacer"></span>
+    <span id="save-status"></span>
+    <button id="new-btn" onclick="newNote()">+ New</button>
+</div>
+
+<div id="layout">
+    <div id="notes-list"></div>
+    <div id="editor-pane">
+        <div id="editor-toolbar">
+            <input id="note-title-input" type="text" placeholder="Title&hellip;" spellcheck="false">
+            <button id="delete-btn" disabled>Delete</button>
+        </div>
+        <textarea id="note-content-input" placeholder="Start typing&hellip;" spellcheck="false"></textarea>
+        <div id="no-note">Select a note or create a new one</div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+/* Fix raspi-style.css href to point to port 8091 */
+(function() {
+    var links = document.querySelectorAll('link[rel="stylesheet"]');
+    links.forEach(function(l) {
+        if (l.href.indexOf('raspi-style') !== -1) {
+            l.href = 'http://' + location.hostname + ':8091/raspi-style.css';
+        }
+    });
+})();
+
+var notes = [], activeId = null, saveTimer = null, searchQuery = '';
+
+var notesList    = document.getElementById('notes-list');
+var saveStatus   = document.getElementById('save-status');
+var matchCount   = document.getElementById('match-count');
+var searchEl     = document.getElementById('search');
+var clearBtn     = document.getElementById('search-clear');
+var noNote       = document.getElementById('no-note');
+var toolbar      = document.getElementById('editor-toolbar');
+var titleInput   = document.getElementById('note-title-input');
+var contentInput = document.getElementById('note-content-input');
+var deleteBtn    = document.getElementById('delete-btn');
+
+function escHtml(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmtTime(ts) {
+    var d = new Date(ts * 1000);
+    return d.toLocaleDateString([], {day:'2-digit', month:'short'})
+        + ' ' + d.toTimeString().slice(0,5);
+}
+function preview(content) {
+    return (content || '').replace(/\n/g,' ').trim().slice(0,55);
+}
+function hl(text, query) {
+    var escaped = escHtml(text || '');
+    if (!query) return escaped;
+    var safe = escHtml(query).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    return escaped.replace(new RegExp('(' + safe + ')','gi'), '<mark>$1</mark>');
+}
+
+function renderList() {
+    notesList.innerHTML = '';
+    var q      = searchQuery.toLowerCase();
+    var sorted = notes.slice().sort(function(a,b){ return b.ts - a.ts; });
+    var visible = 0;
+    sorted.forEach(function(n) {
+        var inTitle   = q && (n.title   || '').toLowerCase().indexOf(q) !== -1;
+        var inContent = q && (n.content || '').toLowerCase().indexOf(q) !== -1;
+        var show      = !q || inTitle || inContent;
+        var div = document.createElement('div');
+        div.className = 'note-item' + (n.id === activeId ? ' active' : '') + (show ? '' : ' hidden');
+        div.dataset.id = n.id;
+        div.innerHTML =
+            '<div class="note-item-title">' + hl(n.title || 'Untitled', q) + '</div>' +
+            '<div class="note-item-preview">' + hl(preview(n.content), q) + '</div>' +
+            '<div class="note-item-time">' + fmtTime(n.ts) + '</div>';
+        div.addEventListener('click', function(){ openNote(n.id); });
+        notesList.appendChild(div);
+        if (show) visible++;
+    });
+    matchCount.textContent = q
+        ? (visible + ' match' + (visible !== 1 ? 'es' : ''))
+        : (notes.length ? notes.length + ' note' + (notes.length !== 1 ? 's' : '') : '');
+}
+
+function onSearch(val) {
+    searchQuery = val.trim();
+    clearBtn.classList.toggle('visible', searchQuery.length > 0);
+    renderList();
+}
+function clearSearch() {
+    searchEl.value = ''; searchQuery = '';
+    clearBtn.classList.remove('visible');
+    renderList(); searchEl.focus();
+}
+
+function openNote(id) {
+    activeId = id;
+    var n = notes.find(function(x){ return x.id === id; });
+    if (!n) return;
+    noNote.style.display       = 'none';
+    toolbar.style.display      = 'flex';
+    contentInput.style.display = 'block';
+    titleInput.value           = n.title   || '';
+    contentInput.value         = n.content || '';
+    deleteBtn.disabled         = false;
+    renderList();
+}
+
+function onEdit() {
+    if (!activeId) return;
+    saveStatus.textContent = 'unsaved\u2026';
+    saveStatus.style.color = '#bbbb44';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveActive, 1200);
+}
+titleInput.addEventListener('input', onEdit);
+contentInput.addEventListener('input', onEdit);
+
+function saveActive() {
+    if (!activeId) return;
+    var n = notes.find(function(x){ return x.id === activeId; });
+    if (!n) return;
+    n.title   = titleInput.value;
+    n.content = contentInput.value;
+    n.ts      = Date.now() / 1000;
+    fetch('http://' + location.hostname + ':8097/api/notes/' + activeId, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ title: n.title, content: n.content }),
+    }).then(function() {
+        saveStatus.textContent = 'saved \u2713';
+        saveStatus.style.color = '#66dd66';
+        renderList();
+    }).catch(function() {
+        saveStatus.textContent = 'error';
+        saveStatus.style.color = '#ff6666';
+    });
+}
+
+function newNote() {
+    clearSearch();
+    fetch('http://' + location.hostname + ':8097/api/notes', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ title: '', content: '' }),
+    }).then(function(r){ return r.json(); }).then(function(n) {
+        notes.push(n);
+        renderList();
+        openNote(n.id);
+        titleInput.focus();
+    });
+}
+
+deleteBtn.addEventListener('click', function() {
+    if (!activeId || !confirm('Delete this note?')) return;
+    var id = activeId;
+    fetch('http://' + location.hostname + ':8097/api/notes/' + id, { method: 'DELETE' })
+        .then(function() {
+            notes    = notes.filter(function(n){ return n.id !== id; });
+            activeId = null;
+            toolbar.style.display      = 'none';
+            contentInput.style.display = 'none';
+            noNote.style.display       = 'flex';
+            renderList();
+            if (notes.length > 0) {
+                openNote(notes.slice().sort(function(a,b){ return b.ts - a.ts; })[0].id);
+            }
+        });
+});
+
+fetch('http://' + location.hostname + ':8097/api/notes')
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+        notes = data;
+        renderList();
+        if (notes.length > 0) {
+            openNote(notes.slice().sort(function(a,b){ return b.ts - a.ts; })[0].id);
+        }
+    }).catch(function(){});
+</script>
+</body>
+</html>
