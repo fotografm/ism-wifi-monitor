@@ -283,8 +283,6 @@ def q_devices(conn):
         LEFT JOIN mac_fp_map m ON f.fp_hash = m.fp_hash
         GROUP BY f.fp_hash
         ORDER BY f.last_seen DESC
-        """
-    ).fetchall()
 
 
 def q_device_by_hash(conn, fp_hash):
@@ -377,7 +375,7 @@ def q_ssids(conn):
         FROM probe_requests
         WHERE ssid IS NOT NULL AND ssid != ''
         GROUP BY ssid
-        ORDER BY probe_count DESC
+        ORDER BY last_seen DESC
         """
     ).fetchall()
 
