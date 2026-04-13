@@ -5,10 +5,22 @@
 {% endblock %}
 {% block content %}
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-  <a href="/devices" class="page-btn">&#8592; All Devices</a>
+  <a id="back-btn" href="/devices" class="page-btn">&#8592; All Devices</a>
   <h1 style="margin:0">Device Detail</h1>
   <span class="badge badge-{{ device.os_hint or "unknown" }}">{{ device.os_hint or "unknown" }}</span>
 </div>
+<script>
+/* Set the correct back destination based on where we came from */
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    var from = params.get('from');
+    var btn = document.getElementById('back-btn');
+    if (from === 'ssids') {
+        btn.href = '/ssids';
+        btn.textContent = '\u2190 Back to SSIDs';
+    }
+})();
+</script>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
 

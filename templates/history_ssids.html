@@ -79,7 +79,7 @@ function renderRows() {
             var hashes = s.fp_hashes.split(',').filter(function(h){ return h && h !== 'null'; });
             deviceHtml = hashes.map(function(h) {
                 h = h.trim();
-                return '<a href="/devices/' + h + '" ' +
+                return '<a href="/devices/' + h + '?from=ssids" ' +
                     'style="display:inline-block;margin:1px 2px;padding:1px 6px;' +
                     'background:#0d0d28;border:1px solid var(--border-dim);border-radius:3px;' +
                     'font-family:monospace;font-size:10px;color:var(--heading);text-decoration:none;' +
