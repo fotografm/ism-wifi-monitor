@@ -5,9 +5,18 @@
   <h1 style="margin:0">Directed SSIDs</h1>
   <span id="tick" style="font-size:10px;color:var(--dim);margin-left:auto"></span>
 </div>
-<p style="color:var(--dim);font-size:11px;margin-bottom:14px">
+<p style="color:var(--dim);font-size:11px;margin-bottom:12px">
   Network names seen in directed probe requests — SSIDs devices are actively searching for, revealing previously joined networks.
 </p>
+<div class="filter-bar" style="margin-bottom:12px">
+  <input type="text" id="ssid-filter" placeholder="Filter SSID&#8230;"
+    style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:11px;padding:4px 8px;border-radius:3px;width:260px">
+  <button onclick="applyFilter()"
+    style="background:var(--btn-bg);border:1px solid var(--btn-border);color:var(--btn-label);font-family:inherit;font-size:10px;padding:4px 10px;cursor:pointer;border-radius:3px">Apply</button>
+  <button onclick="clearFilter()"
+    style="background:var(--btn-bg);border:1px solid var(--btn-border);color:var(--btn-label);font-family:inherit;font-size:10px;padding:4px 10px;cursor:pointer;border-radius:3px">Clear</button>
+  <span id="result-count" style="font-size:10px;color:var(--dim)"></span>
+</div>
 <table>
   <thead><tr>
     <th>SSID</th>
@@ -22,6 +31,9 @@
 {% endblock %}
 {% block scripts %}
 <script>
+var allRows = [];
+var filterStr = '';
+
 function fmtTs(ts) {
     if (!ts) return '—';
     return new Date(ts * 1000).toISOString().replace('T',' ').slice(0,19);
@@ -34,27 +46,57 @@ function fmtAgo(ts) {
     if (d < 86400) return Math.floor(d/3600) + 'h ago';
     return Math.floor(d/86400) + 'd ago';
 }
+
+function applyFilter() {
+    filterStr = document.getElementById('ssid-filter').value.trim().toLowerCase();
+    renderRows();
+}
+function clearFilter() {
+    document.getElementById('ssid-filter').value = '';
+    filterStr = '';
+    renderRows();
+}
+
+function renderRows() {
+    var tbody = document.getElementById('ssid-tbody');
+    tbody.innerHTML = '';
+    var filtered = filterStr
+        ? allRows.filter(function(s){ return (s.ssid||'').toLowerCase().indexOf(filterStr) !== -1; })
+        : allRows;
+    document.getElementById('result-count').textContent =
+        filtered.length + ' of ' + allRows.length + ' SSIDs';
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="no-data">' +
+            (filterStr ? 'No SSIDs match &ldquo;' + filterStr + '&rdquo;'
+                       : 'No directed SSIDs yet &mdash; modern devices mostly send wildcard probes.') +
+            '</td></tr>';
+        return;
+    }
+    filtered.forEach(function(s) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+            '<td><span class="tag" style="max-width:380px">' +
+                (s.ssid||'').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span></td>' +
+            '<td style="text-align:right">' + (s.probe_count||0) + '</td>' +
+            '<td style="text-align:right;color:var(--muted)">' + (s.mac_count||0) + '</td>' +
+            '<td style="text-align:right;color:var(--muted)">' + (s.device_count||0) + '</td>' +
+            '<td style="color:var(--dim);white-space:nowrap;font-size:11px">' + fmtTs(s.first_seen) + '</td>' +
+            '<td style="color:var(--muted);font-size:11px">' + fmtAgo(s.last_seen) + '</td>';
+        tbody.appendChild(tr);
+    });
+}
+
 function load() {
     fetch('/api/ssids').then(function(r){ return r.json(); }).then(function(rows){
-        var tbody = document.getElementById('ssid-tbody');
-        tbody.innerHTML = '';
-        if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="no-data">No directed SSIDs yet — modern devices mostly send wildcard probes.</td></tr>';
-            return;
-        }
-        rows.forEach(function(s) {
-            var tr = document.createElement('tr');
-            tr.innerHTML =
-                '<td><span class="tag" style="max-width:380px">' + (s.ssid||'').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span></td>' +
-                '<td style="text-align:right">' + (s.probe_count||0) + '</td>' +
-                '<td style="text-align:right;color:var(--muted)">' + (s.mac_count||0) + '</td>' +
-                '<td style="text-align:right;color:var(--muted)">' + (s.device_count||0) + '</td>' +
-                '<td style="color:var(--dim);white-space:nowrap;font-size:11px">' + fmtTs(s.first_seen) + '</td>' +
-                '<td style="color:var(--muted);font-size:11px">' + fmtAgo(s.last_seen) + '</td>';
-            tbody.appendChild(tr);
-        });
+        allRows = rows;
+        renderRows();
     }).catch(function(){});
 }
+
+document.getElementById('ssid-filter').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') applyFilter();
+});
+
 var cd = 10;
 setInterval(function(){
     cd--;

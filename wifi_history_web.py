@@ -246,7 +246,8 @@ async def api_associations(request):
     return json_resp([dict(r) for r in rows])
 
 
-async def api_channel_dist(request):    rows = await db_call(db.q_probes_per_channel)
+async def api_channel_dist(request):
+    rows = await db_call(db.q_probes_per_channel)
     return json_resp([dict(r) for r in rows])
 
 
