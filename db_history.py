@@ -369,11 +369,12 @@ def q_ssids(conn):
     return conn.execute(
         """
         SELECT ssid,
-               COUNT(*)                 AS probe_count,
-               COUNT(DISTINCT src_mac)  AS mac_count,
-               COUNT(DISTINCT ie_fp)    AS device_count,
-               MIN(ts)                  AS first_seen,
-               MAX(ts)                  AS last_seen
+               COUNT(*)                      AS probe_count,
+               COUNT(DISTINCT src_mac)       AS mac_count,
+               COUNT(DISTINCT ie_fp)         AS device_count,
+               MIN(ts)                       AS first_seen,
+               MAX(ts)                       AS last_seen,
+               GROUP_CONCAT(DISTINCT ie_fp)  AS fp_hashes
         FROM probe_requests
         WHERE ssid IS NOT NULL AND ssid != ''
         GROUP BY ssid
