@@ -492,6 +492,25 @@ class App:
         return web.Response(body=data, content_type="image/png",
                             headers={"Cache-Control": "public, max-age=86400"})
 
+    async def _rtl433_watchdog(self) -> None:
+        """Restart rtl_433 if it stops producing output for WATCHDOG_SECS."""
+        WATCHDOG_SECS = 300  # 5 minutes — plenty of time even in quiet areas
+        GRACE_SECS    = 120  # don't watchdog until rtl_433 has been up this long
+        await asyncio.sleep(GRACE_SECS)
+        while True:
+            await asyncio.sleep(60)
+            if not self.rtl.running:
+                continue
+            if self.rtl.last_signal_ts == 0.0:
+                continue  # never received a signal yet — not a hang
+            silent_for = time.time() - self.rtl.last_signal_ts
+            if silent_for > WATCHDOG_SECS:
+                log.warning(
+                    "rtl_433 watchdog: no signal for %.0fs — forcing restart",
+                    silent_for,
+                )
+                self.rtl._restart_evt.set()
+
     # ── Startup / shutdown ────────────────────────────────────────────────────
 
     async def start(self, _app: web.Application) -> None:
@@ -504,6 +523,7 @@ class App:
         asyncio.ensure_future(self._signal_consumer())
         asyncio.ensure_future(self._udp_listener())
         asyncio.ensure_future(self._status_broadcaster())
+        asyncio.ensure_future(self._rtl433_watchdog())
         log.info("ISM-Monitor started on http://%s:%d", HOST, PORT)
 
     async def stop(self, _app: web.Application) -> None:
