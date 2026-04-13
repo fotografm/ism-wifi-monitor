@@ -32,11 +32,6 @@ tr.new-row { background-color:#1a1a38;transition:none; }
 tr { transition:background-color 1.4s ease; }
 tr.ap-row { cursor:pointer; }
 tr.ap-row:hover td { background:rgba(74,74,138,0.15); }
-tr.ap-row.expanded-row { background:#111130; }
-tr.detail-row td { background:#0a0a1e;border-bottom:2px solid var(--border-dim);padding:12px 14px; }
-.detail-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:11px; }
-.detail-lbl { font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:3px; }
-.detail-val { color:var(--text);font-family:monospace;word-break:break-all; }
 #load-more-btn { display:block;width:100%;margin:12px 0;padding:6px;background:var(--btn-bg);border:1px solid var(--btn-border);color:var(--btn-label);font-family:inherit;font-size:11px;cursor:pointer;border-radius:3px;letter-spacing:1px; }
 #load-more-btn:hover { background:var(--btn-bg-h); }
 </style>
@@ -75,7 +70,6 @@ tr.detail-row td { background:#0a0a1e;border-bottom:2px solid var(--border-dim);
 <script>
 var allAps=[], sortCol='last_seen', sortDir='desc', filterStr='', knownBssids={};
 var PAGE=200, offset=0, exhausted=false;
-var expandedBssid=null;
 var COL_IDX={ssid:0,bssid:1,manufacturer:2,channel:3,signal_dbm:5,encryption:6,first_seen:7,last_seen:8,seen_count:9};
 
 function rssiClass(v){if(v===null||v===undefined)return 'rssi-none';if(v>=-60)return 'rssi-good';if(v>=-75)return 'rssi-ok';return 'rssi-weak';}
@@ -90,40 +84,6 @@ function sortBy(col){
     document.querySelectorAll('thead th').forEach(function(t){t.className='';});
     var i=COL_IDX[col];if(i!==undefined)document.querySelectorAll('thead th')[i].className='sort-'+sortDir;
     renderTable();
-}
-
-function makeDetail(ap){
-    var tr=document.createElement('tr');tr.className='detail-row';tr.dataset.detailFor=ap.bssid;
-    var td=document.createElement('td');td.colSpan=10;
-    var gps=ap.gps_fix?('Yes &mdash; '+(ap.latitude?ap.latitude.toFixed(5):'&mdash;')+', '+(ap.longitude?ap.longitude.toFixed(5):'&mdash;')):'No fix';
-    td.innerHTML='<div class="detail-grid">'+
-        '<div><div class="detail-lbl">BSSID</div><div class="detail-val">'+(ap.bssid||'&mdash;')+'</div></div>'+
-        '<div><div class="detail-lbl">Manufacturer</div><div class="detail-val">'+(ap.manufacturer||'Unknown')+'</div></div>'+
-        '<div><div class="detail-lbl">Encryption</div><div class="detail-val '+encClass(ap.encryption)+'">'+(ap.encryption||'&mdash;')+'</div></div>'+
-        '<div><div class="detail-lbl">Channel</div><div class="detail-val">'+(ap.channel!=null?ap.channel:'&mdash;')+'</div></div>'+
-        '<div><div class="detail-lbl">Frequency</div><div class="detail-val">'+(ap.frequency_mhz||'&mdash;')+' MHz</div></div>'+
-        '<div><div class="detail-lbl">Signal</div><div class="detail-val">'+(ap.signal_dbm!=null?ap.signal_dbm:'&mdash;')+' dBm</div></div>'+
-        '<div><div class="detail-lbl">First seen</div><div class="detail-val">'+fmtTs(ap.first_seen)+'</div></div>'+
-        '<div><div class="detail-lbl">Last seen</div><div class="detail-val">'+fmtTs(ap.last_seen)+'</div></div>'+
-        '<div><div class="detail-lbl">Sightings</div><div class="detail-val">'+(ap.seen_count||'&mdash;')+'</div></div>'+
-        '<div><div class="detail-lbl">GPS</div><div class="detail-val">'+gps+'</div></div>'+
-        '<div style="grid-column:span 2"><div class="detail-lbl">Capabilities</div><div class="detail-val" style="font-size:10px">'+(ap.capabilities||'&mdash;')+'</div></div>'+
-        '</div>';
-    tr.appendChild(td);return tr;
-}
-
-function closeDetail(){
-    var tbody=document.getElementById('ap-tbody');
-    var open=tbody.querySelector('tr.ap-row.expanded-row');if(open)open.classList.remove('expanded-row');
-    var det=tbody.querySelector('tr.detail-row');if(det)det.remove();
-    expandedBssid=null;
-}
-
-function openDetail(tr, ap){
-    closeDetail();
-    expandedBssid=ap.bssid;
-    tr.classList.add('expanded-row');
-    tr.insertAdjacentElement('afterend',makeDetail(ap));
 }
 
 function makeApRow(ap){
@@ -143,17 +103,12 @@ function makeApRow(ap){
         '<td style="font-size:11px">'+fmtTs(ap.last_seen)+'</td>'+
         '<td style="color:var(--muted)">'+(ap.seen_count!=null?ap.seen_count:'\u2014')+'</td>';
     if(isNew){tr.classList.add('new-row');requestAnimationFrame(function(){requestAnimationFrame(function(){tr.classList.remove('new-row');});});}
-    tr.addEventListener('click',function(){
-        if(expandedBssid===ap.bssid){closeDetail();return;}
-        openDetail(tr,ap);
-    });
+    tr.addEventListener('click',function(){ window.location.href='/ap/'+ap.bssid; });
     knownBssids[ap.bssid]=ap.last_seen;
     return tr;
 }
 
-/* Full rebuild — used for sort/filter changes. Closes any open detail row. */
 function renderTable(){
-    closeDetail();
     var filtered=allAps.filter(function(ap){return !filterStr||apSearch(ap).indexOf(filterStr)!==-1;});
     filtered.sort(function(a,b){
         var av=a[sortCol],bv=b[sortCol];
@@ -165,29 +120,8 @@ function renderTable(){
     });
     var tbody=document.getElementById('ap-tbody');
     tbody.innerHTML='';
-    filtered.forEach(function(ap){tbody.appendChild(makeApRow(ap));});
+    filtered.forEach(function(ap){ tbody.appendChild(makeApRow(ap)); });
     document.getElementById('ap-count').textContent=filtered.length+' access points';
-}
-
-/*
- * Gentle in-place update — used during auto-refresh when a detail row is open.
- * Only updates the volatile cells (signal, last_seen, sightings).
- * Never touches the DOM structure, so the detail row stays open.
- */
-function updateCellsInPlace(){
-    document.querySelectorAll('#ap-tbody tr.ap-row').forEach(function(row){
-        var bssid=row.dataset.bssid;
-        if(!bssid)return;
-        var ap=allAps.find(function(a){return a.bssid===bssid;});
-        if(!ap)return;
-        var c=row.cells;
-        if(!c||c.length<10)return;
-        c[5].textContent=ap.signal_dbm!=null?ap.signal_dbm:'\u2014';
-        c[5].className=rssiClass(ap.signal_dbm);
-        c[8].textContent=fmtTs(ap.last_seen);
-        c[9].textContent=ap.seen_count!=null?ap.seen_count:'\u2014';
-        knownBssids[bssid]=ap.last_seen;
-    });
 }
 
 function fetchAps(){
@@ -196,12 +130,7 @@ function fetchAps(){
             var i=allAps.findIndex(function(a){return a.bssid===ap.bssid;});
             if(i>=0)allAps[i]=ap; else allAps.unshift(ap);
         });
-        /* If a detail row is open, do gentle in-place update to avoid closing it */
-        if(expandedBssid!==null){
-            updateCellsInPlace();
-        } else {
-            renderTable();
-        }
+        renderTable();
     }).catch(function(){});
 }
 

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AP Detail &#8212; raspi81</title>
+<link rel="stylesheet" href="/raspi-style.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+body { padding: 0; }
+#topbar { display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border-dim);background:var(--panel);margin-bottom:16px; }
+#topbar h1 { font-size:13px;color:var(--heading);letter-spacing:2px;text-transform:uppercase;white-space:nowrap; }
+.back-btn { padding:4px 12px;border:1px solid var(--btn-border);background:var(--btn-bg);color:var(--btn-label);border-radius:4px;text-decoration:none;font-size:11px;flex-shrink:0; }
+.back-btn:hover { background:var(--btn-bg-h); }
+.content { padding:0 14px 20px; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px; }
+@media (max-width:700px) { .two-col { grid-template-columns:1fr; } }
+.info-card { background:var(--panel);border:1px solid var(--border-dim);border-radius:4px;overflow:hidden; }
+.card-title { font-size:10px;text-transform:uppercase;letter-spacing:3px;color:var(--muted);padding:8px 12px;background:#0a0a18;border-bottom:1px solid var(--border-dim); }
+.info-grid { display:grid;grid-template-columns:1fr 1fr;padding:10px 12px;gap:10px; }
+.info-item .lbl { font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:2px; }
+.info-item .val { font-family:monospace;font-size:12px;color:var(--text);word-break:break-all; }
+.enc-open { color:var(--value-alert); }
+.enc-wpa  { color:var(--value-green); }
+.rssi-good { color:var(--value-green); }
+.rssi-ok   { color:var(--value-warn); }
+.rssi-weak { color:var(--value-alert); }
+.cap-pill { display:inline-block;background:#0d0d28;border:1px solid var(--border-dim);border-radius:3px;padding:1px 7px;font-size:10px;color:var(--muted);margin:2px; }
+#map { height:200px;border-radius:4px;margin:0 12px 12px; }
+.leaflet-container { background:#0a0a18; }
+.assoc-table { width:100%;border-collapse:collapse;font-size:12px; }
+.assoc-table th { padding:6px 10px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border-dim);text-align:left;background:#0a0a18; }
+.assoc-table td { padding:5px 10px;border-bottom:1px solid var(--border-dim);color:var(--text); }
+.assoc-table tr:last-child td { border-bottom:none; }
+.badge-assoc { display:inline-block;background:#0d0d28;border:1px solid var(--border-dim);border-radius:3px;padding:1px 6px;font-size:10px;color:var(--muted); }
+#tick { font-size:10px;color:var(--dim);margin-left:auto; }
+.full-width { margin-bottom:14px; }
+</style>
+</head>
+<body>
+<div id="topbar">
+    <a href="/aps" class="back-btn">&#8592; WiFi APs</a>
+    <h1 id="page-title">AP Detail</h1>
+    <span id="tick"></span>
+</div>
+<div class="content">
+
+  <div class="two-col">
+
+    <div class="info-card">
+      <div class="card-title">Identity</div>
+      <div class="info-grid">
+        <div class="info-item"><div class="lbl">SSID</div><div class="val" id="ap-ssid">—</div></div>
+        <div class="info-item"><div class="lbl">BSSID</div><div class="val" id="ap-bssid">—</div></div>
+        <div class="info-item"><div class="lbl">Manufacturer</div><div class="val" id="ap-manuf">—</div></div>
+        <div class="info-item"><div class="lbl">OUI</div><div class="val" id="ap-oui">—</div></div>
+        <div class="info-item"><div class="lbl">Encryption</div><div class="val" id="ap-enc">—</div></div>
+        <div class="info-item"><div class="lbl">Hidden SSID</div><div class="val" id="ap-hidden">—</div></div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="card-title">Radio</div>
+      <div class="info-grid">
+        <div class="info-item"><div class="lbl">Channel</div><div class="val" id="ap-channel">—</div></div>
+        <div class="info-item"><div class="lbl">Frequency</div><div class="val" id="ap-freq">—</div></div>
+        <div class="info-item"><div class="lbl">Band</div><div class="val" id="ap-band">—</div></div>
+        <div class="info-item"><div class="lbl">Generation</div><div class="val" id="ap-gen">—</div></div>
+        <div class="info-item"><div class="lbl">Signal avg</div><div class="val" id="ap-sig-avg">—</div></div>
+        <div class="info-item"><div class="lbl">Signal range</div><div class="val" id="ap-sig-range">—</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="two-col">
+
+    <div class="info-card">
+      <div class="card-title">History</div>
+      <div class="info-grid">
+        <div class="info-item"><div class="lbl">First seen</div><div class="val" id="ap-first">—</div></div>
+        <div class="info-item"><div class="lbl">Last seen</div><div class="val" id="ap-last">—</div></div>
+        <div class="info-item"><div class="lbl">Total sightings</div><div class="val" id="ap-sightings">—</div></div>
+        <div class="info-item"><div class="lbl">GPS sightings</div><div class="val" id="ap-gps">—</div></div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="card-title">802.11 Capability Flags</div>
+      <div style="padding:10px 12px" id="ap-caps">—</div>
+    </div>
+
+  </div>
+
+  <div class="info-card full-width" id="map-card" style="display:none">
+    <div class="card-title">Last Known GPS Position</div>
+    <div id="map"></div>
+    <div style="padding:6px 12px;font-size:11px;color:var(--muted)" id="map-coords"></div>
+  </div>
+
+  <div class="info-card full-width">
+    <div class="card-title">Associated Clients <span id="assoc-count" style="color:var(--dim);font-weight:normal"></span></div>
+    <table class="assoc-table">
+      <thead><tr>
+        <th>Time</th>
+        <th>Type</th>
+        <th>Client MAC</th>
+        <th>Manufacturer</th>
+        <th>SSID</th>
+        <th>Ch</th>
+        <th>dBm</th>
+      </tr></thead>
+      <tbody id="assoc-tbody">
+        <tr><td colspan="7" style="color:var(--dim);padding:16px;text-align:center">Loading&#8230;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+var BSSID = {{ bssid | tojson }};
+var apMap = null;
+var apMarker = null;
+
+function fmtTs(ts) {
+    if (!ts) return '—';
+    return ts.replace('T',' ').slice(0,19);
+}
+function fmtSubtype(st) {
+    return {0:'Assoc Req', 1:'Assoc Resp', 11:'Auth'}[st] || String(st);
+}
+function rssiClass(v) {
+    if (v === null || v === undefined) return '';
+    if (v >= -60) return 'rssi-good';
+    if (v >= -75) return 'rssi-ok';
+    return 'rssi-weak';
+}
+function encClass(e) {
+    return e === 'OPEN' ? 'enc-open' : 'enc-wpa';
+}
+
+function set(id, html, raw) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (raw) el.innerHTML = html;
+    else el.textContent = html || '—';
+}
+
+function loadAP() {
+    fetch('/api/ap/' + BSSID).then(function(r){ return r.json(); }).then(function(d){
+        var ap = d.ap, st = d.stats, tech = d.technical;
+
+        document.getElementById('page-title').textContent =
+            (ap.ssid || '[Hidden]') + ' — ' + BSSID;
+        document.title = (ap.ssid || BSSID) + ' — raspi81';
+
+        set('ap-ssid', ap.ssid || '<span style="color:var(--dim)">[Hidden]</span>', true);
+        set('ap-bssid', BSSID);
+        set('ap-manuf', tech.manuf_long || tech.manuf_short || '—');
+        set('ap-oui', tech.oui || '—');
+
+        var encEl = document.getElementById('ap-enc');
+        encEl.textContent = ap.encryption || '—';
+        encEl.className = 'val ' + encClass(ap.encryption);
+
+        set('ap-hidden', tech.hidden_ssid ? 'Yes (beacon with empty SSID)' : 'No');
+        set('ap-channel', tech.channel != null ? String(tech.channel) : '—');
+        set('ap-freq', tech.frequency_mhz ? tech.frequency_mhz + ' MHz' : '—');
+        set('ap-band', tech.band || '—');
+        set('ap-gen', tech.generation || '—');
+
+        var sigAvgEl = document.getElementById('ap-sig-avg');
+        sigAvgEl.textContent = st.sig_avg != null ? st.sig_avg + ' dBm' : '—';
+        sigAvgEl.className = 'val ' + rssiClass(st.sig_avg);
+        set('ap-sig-range',
+            (st.sig_min != null && st.sig_max != null)
+            ? st.sig_min + ' / ' + st.sig_max + ' dBm'
+            : '—');
+
+        set('ap-first', fmtTs(ap.first_seen));
+        set('ap-last', fmtTs(ap.last_seen));
+        set('ap-sightings', st.total_sightings != null ? String(st.total_sightings) : '—');
+        set('ap-gps', st.gps_sightings != null ? String(st.gps_sightings) : '—');
+
+        /* capability pills */
+        var capsEl = document.getElementById('ap-caps');
+        if (tech.cap_flags && tech.cap_flags.length) {
+            capsEl.innerHTML = tech.cap_flags.map(function(f){
+                return '<span class="cap-pill" title="' + f.raw + '">' + f.label + '</span>';
+            }).join('');
+        } else {
+            capsEl.textContent = 'No capability flags parsed';
+        }
+
+        /* GPS map — use last sighting with GPS */
+        var gpsSightings = (d.sightings || []).filter(function(s){
+            return s.gps_fix && s.latitude && s.longitude;
+        });
+        if (gpsSightings.length) {
+            var last = gpsSightings[0];
+            var lat = last.latitude, lon = last.longitude;
+            document.getElementById('map-card').style.display = '';
+            document.getElementById('map-coords').textContent =
+                lat.toFixed(6) + ', ' + lon.toFixed(6) +
+                (last.altitude_m ? '  alt: ' + last.altitude_m.toFixed(1) + ' m' : '') +
+                '  —  from sighting at ' + fmtTs(last.timestamp);
+
+            if (!apMap) {
+                apMap = L.map('map', { center:[lat,lon], zoom:17, zoomControl:true });
+                L.tileLayer('/tiles/{z}/{x}/{y}', {
+                    attribution: '&copy; OSM',
+                    maxZoom: 19,
+                }).addTo(apMap);
+                apMarker = L.circleMarker([lat,lon], {
+                    radius:9, color:'#4a4a8a', fillColor:'#88ee88',
+                    fillOpacity:0.85, weight:2,
+                }).addTo(apMap);
+            } else {
+                apMap.setView([lat,lon]);
+                apMarker.setLatLng([lat,lon]);
+            }
+
+            /* plot all GPS sightings as faded dots */
+            gpsSightings.slice(1).forEach(function(s){
+                L.circleMarker([s.latitude,s.longitude],{
+                    radius:4, color:'#4a4a8a', fillColor:'#4a4a8a',
+                    fillOpacity:0.3, weight:1,
+                }).addTo(apMap);
+            });
+        }
+
+    }).catch(function(){});
+}
+
+function loadAssoc() {
+    fetch('/api/ap/' + BSSID + '/associations').then(function(r){ return r.json(); }).then(function(rows){
+        var tbody = document.getElementById('assoc-tbody');
+        document.getElementById('assoc-count').textContent = '(' + rows.length + ')';
+        tbody.innerHTML = '';
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="color:var(--dim);padding:16px;text-align:center">No association frames captured for this AP</td></tr>';
+            return;
+        }
+        rows.forEach(function(a) {
+            var tr = document.createElement('tr');
+            var ssid = a.ssid ? '<span style="background:#0d0d28;border:1px solid var(--border-dim);border-radius:3px;padding:1px 6px;font-size:11px">' +
+                a.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' : '—';
+            tr.innerHTML =
+                '<td style="font-size:10px;color:var(--dim);white-space:nowrap">' + fmtTs(a.ts) + '</td>' +
+                '<td><span class="badge-assoc">' + fmtSubtype(a.frame_subtype) + '</span></td>' +
+                '<td style="font-family:monospace;font-size:11px">' + (a.src_mac||'—') + '</td>' +
+                '<td style="font-size:11px;color:var(--muted)">' + (a.manufacturer||'—') + '</td>' +
+                '<td>' + ssid + '</td>' +
+                '<td>' + (a.channel||'—') + '</td>' +
+                '<td class="' + rssiClass(a.rssi) + '">' + (a.rssi||'—') + '</td>';
+            tbody.appendChild(tr);
+        });
+    }).catch(function(){});
+}
+
+function load() { loadAP(); loadAssoc(); }
+
+var cd = 10;
+setInterval(function(){
+    cd--;
+    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
+    if (cd <= 0) { cd = 10; load(); }
+}, 1000);
+
+load();
+</script>
+</body>
+</html>

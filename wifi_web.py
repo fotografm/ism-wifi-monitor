@@ -672,6 +672,29 @@ def _do_cache_area(lat: float, lon: float) -> None:
         _update_cache(running=False, finished=True, message=f'Error: {exc}')
 
 
+@app.route('/ap/<bssid>')
+def ap_detail_page(bssid: str):
+    return render_template('wifi_ap_detail.html', bssid=bssid)
+
+
+@app.route('/api/ap/<bssid>/associations')
+def api_ap_associations(bssid: str):
+    dbconn = get_db()
+    rows = dbconn.execute('''
+        SELECT ts, frame_subtype, src_mac, ssid, rssi, channel
+        FROM associations
+        WHERE bssid = ?
+        ORDER BY ts DESC
+        LIMIT 200
+    ''', (bssid,)).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d['manufacturer'] = _oui_lookup(r['src_mac'])[1]
+        result.append(d)
+    return jsonify(result)
+
+
 # ── AP detail ─────────────────────────────────────────────────────────────────
 
 @app.route('/api/ap/<bssid>')
