@@ -210,7 +210,9 @@ async def api_stats(request):
 
 
 async def api_recent_probes(request):
-    rows = await db_call(db.q_recent_probes, 200)
+    limit  = int(request.rel_url.query.get('limit', 200))
+    offset = int(request.rel_url.query.get('offset', 0))
+    rows = await db_call(db.q_recent_probes, limit, offset)
     result = []
     for r in rows:
         d = dict(r)

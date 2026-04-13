@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Live Feed — raspi81</title>
+<title>ISM Live Feed &#8212; raspi81</title>
 <link rel="stylesheet" href="/raspi-style.css">
 <style>
 body { display:flex; flex-direction:column; height:100vh; overflow:hidden;
@@ -23,10 +23,7 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden;
     flex-shrink:0;
 }
 .back-btn:hover { background:var(--btn-bg-h); }
-#gps-badge { font-size:11px; color:var(--muted); margin-left:auto; white-space:nowrap; }
 #freq-badge { font-size:11px; color:var(--muted); white-space:nowrap; }
-#gps-badge .fix { color:var(--green-bright); }
-#gps-badge .nofix { color:var(--value-warn); }
 
 #bandbar {
     display:flex; gap:8px; flex-wrap:wrap; padding:7px 14px;
@@ -121,9 +118,8 @@ tr:hover td { background:rgba(74,74,138,0.15); }
 
 <div id="topbar">
     <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">← Home</a>
-    <h1>📡 Live Feed</h1>
+    <h1>📡 ISM Live Feed</h1>
     <div id="freq-badge">RX: <span id="freq-val" style="color:var(--value-green);font-weight:bold;">—</span></div>
-    <div id="gps-badge">GPS: <span id="gps-status" class="nofix">NO GPS</span></div>
 </div>
 
 <div id="bandbar">
@@ -143,6 +139,8 @@ tr:hover td { background:rgba(74,74,138,0.15); }
     <button class="flt-btn" data-cat="tpms">🚗 TPMS</button>
     <button class="flt-btn" data-cat="remote">📻 Remote Controls</button>
     <button class="flt-btn" data-cat="other">❓ Other</button>
+    <input type="text" id="search-input" placeholder="Search model / device ID…"
+        style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:11px;padding:4px 8px;border-radius:3px;width:200px;">
     <div id="pkt-count">Showing <span id="shown-count">0</span> rows</div>
     <button class="clear-btn" onclick="clearDisplay()">🗑 Clear</button>
 </div>
@@ -167,13 +165,19 @@ tr:hover td { background:rgba(74,74,138,0.15); }
 </div>
 
 <script>
-const MAX_ROWS  = 200;
 const tbody     = document.getElementById('feed-body');
 const emptyMsg  = document.getElementById('empty-msg');
 const shownCnt  = document.getElementById('shown-count');
+const searchEl  = document.getElementById('search-input');
 let   activeFilter = 'all';
+let   searchStr    = '';
 let   allRows   = [];
 let   ws, wsRetry;
+
+searchEl.addEventListener('input', function() {
+    searchStr = searchEl.value.trim().toLowerCase();
+    applyFilter();
+});
 
 document.querySelectorAll('.flt-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -187,7 +191,9 @@ document.querySelectorAll('.flt-btn').forEach(btn => {
 function applyFilter() {
     let shown = 0;
     allRows.forEach(r => {
-        const visible = (activeFilter === 'all' || r.category === activeFilter);
+        const catOk  = (activeFilter === 'all' || r.category === activeFilter);
+        const textOk = !searchStr || r.searchStr.indexOf(searchStr) !== -1;
+        const visible = catOk && textOk;
         r.tr.style.display = visible ? '' : 'none';
         if (visible) shown++;
     });
@@ -249,14 +255,11 @@ function addRow(sig, flash) {
     }
 
     tbody.insertBefore(tr, tbody.firstChild);
-    allRows.unshift({ category: sig.category || 'other', tr });
+    const rowSearchStr = ((sig.model || '') + ' ' + (sig.device_id || '')).toLowerCase();
+    allRows.unshift({ category: sig.category || 'other', tr, searchStr: rowSearchStr });
 
-    while (allRows.length > MAX_ROWS) {
-        const old = allRows.pop();
-        old.tr.remove();
-    }
-
-    const visible = (activeFilter === 'all' || (sig.category || 'other') === activeFilter);
+    const visible = (activeFilter === 'all' || (sig.category || 'other') === activeFilter)
+                 && (!searchStr || rowSearchStr.indexOf(searchStr) !== -1);
     if (!visible) tr.style.display = 'none';
     applyFilter();
 }
@@ -306,7 +309,6 @@ function connect() {
         let msg;
         try { msg = JSON.parse(ev.data); } catch { return; }
         if (msg.type === 'signal') addRow(msg.data, true);
-        if (msg.type === 'gps')    updateGpsBadge(msg.data);
         if (msg.type === 'status') {
             const mhz = (msg.data.frequency / 1e6).toFixed(2);
             document.getElementById('freq-val').textContent = mhz + ' MHz';
@@ -316,14 +318,9 @@ function connect() {
     };
 }
 
-function updateGpsBadge(d) {
-    const el = document.getElementById('gps-status');
-    el.className = d.status === 'FIX' ? 'fix' : 'nofix';
-    el.textContent = d.status === 'FIX'
-        ? `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}` : d.status;
-}
+function updateGpsBadge(d) {}
 
-fetch('/api/signals?limit=200').then(r => r.json()).then(rows => {
+fetch('/api/signals?limit=500').then(r => r.json()).then(rows => {
     rows.reverse().forEach(sig => addRow(sig, false));
     if (allRows.length === 0) emptyMsg.style.display = 'block';
 }).catch(() => {});

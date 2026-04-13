@@ -7,44 +7,37 @@
 <link rel="stylesheet" href="/raspi-style.css">
 <style>
 body { padding: 0; }
-#topbar {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 10px 14px; border-bottom: 1px solid var(--border-dim);
-    background: var(--panel); margin-bottom: 16px;
-}
-#topbar h1 { font-size: 13px; color: var(--heading); letter-spacing: 2px;
-             text-transform: uppercase; white-space: nowrap; }
-.back-btn { padding: 4px 12px; border: 1px solid var(--btn-border);
-    background: var(--btn-bg); color: var(--btn-label);
-    border-radius: 4px; text-decoration: none; font-size: 11px; flex-shrink: 0; }
-.back-btn:hover { background: var(--btn-bg-h); }
-#tick { font-size: 10px; color: var(--dim); margin-left: auto; }
-.content { padding: 0 14px 14px; }
-
-.filter-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-.filter-bar input { background: var(--input-bg); border: 1px solid var(--border);
-    color: var(--text); font-family: inherit; font-size: 11px;
-    padding: 4px 8px; border-radius: 3px; width: 200px; }
-.filter-bar button { background: var(--btn-bg); border: 1px solid var(--btn-border);
-    color: var(--btn-label); font-family: inherit; font-size: 10px;
-    padding: 4px 10px; cursor: pointer; border-radius: 3px; }
-.filter-bar button:hover { background: var(--btn-bg-h); }
-#ap-count { font-size: 10px; color: var(--dim); }
-
-.rssi-good { color: var(--value-green); }
-.rssi-ok   { color: var(--value-warn); }
-.rssi-weak { color: var(--value-alert); }
-.rssi-none { color: var(--dim); }
-.enc-open  { color: var(--value-alert); }
-.enc-wpa   { color: var(--value-green); }
-
-th { cursor: pointer; user-select: none; }
-th:hover { color: var(--heading); }
-th.sort-asc::after  { content: " \2191"; color: var(--value-green); }
-th.sort-desc::after { content: " \2193"; color: var(--value-green); }
-
-tr.new-row { background-color: #1a1a38; transition: none; }
-tr { transition: background-color 1.4s ease; }
+#topbar { display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border-dim);background:var(--panel);margin-bottom:16px; }
+#topbar h1 { font-size:13px;color:var(--heading);letter-spacing:2px;text-transform:uppercase;white-space:nowrap; }
+.back-btn { padding:4px 12px;border:1px solid var(--btn-border);background:var(--btn-bg);color:var(--btn-label);border-radius:4px;text-decoration:none;font-size:11px;flex-shrink:0; }
+.back-btn:hover { background:var(--btn-bg-h); }
+#tick { font-size:10px;color:var(--dim);margin-left:auto; }
+.content { padding:0 14px 14px; }
+.filter-bar { display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap; }
+.filter-bar input { background:var(--input-bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:11px;padding:4px 8px;border-radius:3px;width:260px; }
+.filter-bar button { background:var(--btn-bg);border:1px solid var(--btn-border);color:var(--btn-label);font-family:inherit;font-size:10px;padding:4px 10px;cursor:pointer;border-radius:3px; }
+.filter-bar button:hover { background:var(--btn-bg-h); }
+#ap-count { font-size:10px;color:var(--dim); }
+.rssi-good { color:var(--value-green); }
+.rssi-ok   { color:var(--value-warn); }
+.rssi-weak { color:var(--value-alert); }
+.rssi-none { color:var(--dim); }
+.enc-open  { color:var(--value-alert); }
+.enc-wpa   { color:var(--value-green); }
+th { cursor:pointer;user-select:none; }
+th:hover { color:var(--heading); }
+th.sort-asc::after  { content:" \2191";color:var(--value-green); }
+th.sort-desc::after { content:" \2193";color:var(--value-green); }
+tr.new-row { background-color:#1a1a38;transition:none; }
+tr { transition:background-color 1.4s ease; }
+tr.ap-row { cursor:pointer; }
+tr.ap-row:hover td { background:rgba(74,74,138,0.15); }
+tr.detail-row td { background:#0a0a1e;border-bottom:2px solid var(--border-dim);padding:12px 14px; }
+.detail-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:11px; }
+.detail-lbl { font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:3px; }
+.detail-val { color:var(--text);font-family:monospace;word-break:break-all; }
+#load-more-btn { display:block;width:100%;margin:12px 0;padding:6px;background:var(--btn-bg);border:1px solid var(--btn-border);color:var(--btn-label);font-family:inherit;font-size:11px;cursor:pointer;border-radius:3px;letter-spacing:1px; }
+#load-more-btn:hover { background:var(--btn-bg-h); }
 </style>
 </head>
 <body>
@@ -55,176 +48,133 @@ tr { transition: background-color 1.4s ease; }
     <span id="tick">&#8212;</span>
 </div>
 <div class="content">
-
 <div class="filter-bar">
-    <input type="text" id="ap-filter" placeholder="Filter&#8230;" style="width:260px">
+    <input type="text" id="ap-filter" placeholder="Filter&#8230;">
     <button onclick="applyFilter()">Apply</button>
     <button onclick="clearFilter()">Clear</button>
     <span id="ap-count"></span>
 </div>
-
 <table>
-    <thead>
-        <tr>
-            <th onclick="sortBy('ssid')">SSID</th>
-            <th onclick="sortBy('bssid')">BSSID</th>
-            <th onclick="sortBy('channel')">CH</th>
-            <th>Freq</th>
-            <th onclick="sortBy('rssi')">Signal</th>
-            <th onclick="sortBy('encryption')">Enc</th>
-            <th onclick="sortBy('first_seen')">First seen</th>
-            <th onclick="sortBy('last_seen')">Last seen</th>
-            <th onclick="sortBy('seen_count')">#</th>
-        </tr>
-    </thead>
+    <thead><tr>
+        <th onclick="sortBy('ssid')">SSID</th>
+        <th onclick="sortBy('bssid')">BSSID</th>
+        <th onclick="sortBy('manufacturer')">Manufacturer</th>
+        <th onclick="sortBy('channel')">CH</th>
+        <th>Freq</th>
+        <th onclick="sortBy('signal_dbm')">Signal</th>
+        <th onclick="sortBy('encryption')">Enc</th>
+        <th onclick="sortBy('first_seen')">First seen</th>
+        <th onclick="sortBy('last_seen')">Last seen</th>
+        <th onclick="sortBy('seen_count')">Sightings</th>
+    </tr></thead>
     <tbody id="ap-tbody"></tbody>
 </table>
-
+<button id="load-more-btn" onclick="loadMore()">Load older APs</button>
 </div>
 <script>
-var allAps = [];
-var sortCol = 'last_seen';
-var sortDir = 'desc';
-var filterStr = '';
-var knownBssids = {};
+var allAps=[], sortCol='last_seen', sortDir='desc', filterStr='', knownBssids={};
+var PAGE=200, offset=0, exhausted=false;
+var COL_IDX={ssid:0,bssid:1,manufacturer:2,channel:3,signal_dbm:5,encryption:6,first_seen:7,last_seen:8,seen_count:9};
 
-var COL_IDX = { ssid:0, bssid:1, channel:2, rssi:4, encryption:5, first_seen:6, last_seen:7, seen_count:8 };
+function rssiClass(v){if(v===null||v===undefined)return 'rssi-none';if(v>=-60)return 'rssi-good';if(v>=-75)return 'rssi-ok';return 'rssi-weak';}
+function encClass(e){return e==='OPEN'?'enc-open':'enc-wpa';}
+function fmtTs(ts){return ts?ts.replace('T',' ').slice(0,16):'\u2014';}
+function apSearch(ap){return [ap.ssid||'',ap.bssid||'',ap.manufacturer||'',ap.channel!=null?String(ap.channel):'',ap.encryption||'',ap.first_seen||'',ap.last_seen||''].join(' ').toLowerCase();}
+function applyFilter(){filterStr=document.getElementById('ap-filter').value.trim().toLowerCase();renderTable();}
+function clearFilter(){document.getElementById('ap-filter').value='';filterStr='';renderTable();}
 
-function rssiClass(v) {
-    if (v === null || v === undefined) return 'rssi-none';
-    if (v >= -60) return 'rssi-good';
-    if (v >= -75) return 'rssi-ok';
-    return 'rssi-weak';
-}
-function encClass(e) { return e === 'OPEN' ? 'enc-open' : 'enc-wpa'; }
-function fmtTs(ts) { return ts ? ts.replace('T', ' ').slice(0, 16) : '\u2014'; }
-
-// Build a searchable string from all fields of an AP record
-function apSearchStr(ap) {
-    return [
-        ap.ssid || '',
-        ap.bssid || '',
-        ap.channel !== null && ap.channel !== undefined ? String(ap.channel) : '',
-        ap.frequency_mhz !== null && ap.frequency_mhz !== undefined ? String(ap.frequency_mhz) : '',
-        ap.signal_dbm !== null && ap.signal_dbm !== undefined ? String(ap.signal_dbm) : '',
-        ap.encryption || '',
-        ap.first_seen || '',
-        ap.last_seen || ''
-    ].join(' ').toLowerCase();
-}
-
-function applyFilter() {
-    filterStr = document.getElementById('ap-filter').value.trim().toLowerCase();
-    renderTable();
-}
-function clearFilter() {
-    document.getElementById('ap-filter').value = '';
-    filterStr = '';
+function sortBy(col){
+    if(sortCol===col)sortDir=sortDir==='asc'?'desc':'asc'; else{sortCol=col;sortDir='desc';}
+    document.querySelectorAll('thead th').forEach(function(t){t.className='';});
+    var i=COL_IDX[col];if(i!==undefined)document.querySelectorAll('thead th')[i].className='sort-'+sortDir;
     renderTable();
 }
 
-function sortBy(col) {
-    if (sortCol === col) {
-        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-        sortCol = col;
-        sortDir = 'desc';
-    }
-    document.querySelectorAll('thead th').forEach(function(th) { th.className = ''; });
-    var idx = COL_IDX[col];
-    if (idx !== undefined) {
-        document.querySelectorAll('thead th')[idx].className = 'sort-' + sortDir;
-    }
-    renderTable();
+function makeDetail(ap){
+    var tr=document.createElement('tr');tr.className='detail-row';tr.dataset.detailFor=ap.bssid;
+    var td=document.createElement('td');td.colSpan=10;
+    var gps=ap.gps_fix?('Yes &mdash; '+(ap.latitude?ap.latitude.toFixed(5):'&mdash;')+', '+(ap.longitude?ap.longitude.toFixed(5):'&mdash;')):'No fix';
+    td.innerHTML='<div class="detail-grid">'+
+        '<div><div class="detail-lbl">BSSID</div><div class="detail-val">'+(ap.bssid||'&mdash;')+'</div></div>'+
+        '<div><div class="detail-lbl">Manufacturer</div><div class="detail-val">'+(ap.manufacturer||'Unknown')+'</div></div>'+
+        '<div><div class="detail-lbl">Encryption</div><div class="detail-val '+encClass(ap.encryption)+'">'+(ap.encryption||'&mdash;')+'</div></div>'+
+        '<div><div class="detail-lbl">Channel</div><div class="detail-val">'+(ap.channel!=null?ap.channel:'&mdash;')+'</div></div>'+
+        '<div><div class="detail-lbl">Frequency</div><div class="detail-val">'+(ap.frequency_mhz||'&mdash;')+' MHz</div></div>'+
+        '<div><div class="detail-lbl">Signal</div><div class="detail-val">'+(ap.signal_dbm!=null?ap.signal_dbm:'&mdash;')+' dBm</div></div>'+
+        '<div><div class="detail-lbl">First seen</div><div class="detail-val">'+fmtTs(ap.first_seen)+'</div></div>'+
+        '<div><div class="detail-lbl">Last seen</div><div class="detail-val">'+fmtTs(ap.last_seen)+'</div></div>'+
+        '<div><div class="detail-lbl">Sightings</div><div class="detail-val">'+(ap.seen_count||'&mdash;')+'</div></div>'+
+        '<div><div class="detail-lbl">GPS</div><div class="detail-val">'+gps+'</div></div>'+
+        '<div style="grid-column:span 2"><div class="detail-lbl">Capabilities</div><div class="detail-val" style="font-size:10px">'+(ap.capabilities||'&mdash;')+'</div></div>'+
+        '</div>';
+    tr.appendChild(td);return tr;
 }
 
-function renderTable() {
-    filterStr = document.getElementById('ap-filter').value.trim().toLowerCase();
-    var filtered = allAps.filter(function(ap) {
-        if (!filterStr) return true;
-        return apSearchStr(ap).indexOf(filterStr) !== -1;
+function renderTable(){
+    var filtered=allAps.filter(function(ap){return !filterStr||apSearch(ap).indexOf(filterStr)!==-1;});
+    filtered.sort(function(a,b){
+        var av=a[sortCol],bv=b[sortCol];
+        if(av===null||av===undefined)av=sortDir==='asc'?'\uffff':'';
+        if(bv===null||bv===undefined)bv=sortDir==='asc'?'\uffff':'';
+        if(typeof av==='number'&&typeof bv==='number')return sortDir==='asc'?av-bv:bv-av;
+        av=String(av);bv=String(bv);
+        return sortDir==='asc'?(av<bv?-1:av>bv?1:0):(av>bv?-1:av<bv?1:0);
     });
-
-    filtered.sort(function(a, b) {
-        var av = a[sortCol], bv = b[sortCol];
-        if (av === null || av === undefined) av = sortDir === 'asc' ? '\uffff' : '';
-        if (bv === null || bv === undefined) bv = sortDir === 'asc' ? '\uffff' : '';
-        if (typeof av === 'number' && typeof bv === 'number') {
-            return sortDir === 'asc' ? av - bv : bv - av;
-        }
-        av = String(av); bv = String(bv);
-        if (sortDir === 'asc') return av < bv ? -1 : av > bv ? 1 : 0;
-        return av > bv ? -1 : av < bv ? 1 : 0;
+    var tbody=document.getElementById('ap-tbody');
+    tbody.innerHTML='';
+    filtered.forEach(function(ap){
+        var isNew=knownBssids[ap.bssid]!==undefined&&knownBssids[ap.bssid]!==ap.last_seen;
+        var tr=document.createElement('tr');tr.className='ap-row';
+        tr.innerHTML=
+            '<td>'+(ap.ssid||'<span style="color:var(--dim)">[hidden]</span>')+'</td>'+
+            '<td style="font-size:10px;font-family:monospace">'+ap.bssid+'</td>'+
+            '<td style="font-size:11px;color:var(--muted)">'+(ap.manufacturer||'&mdash;')+'</td>'+
+            '<td>'+(ap.channel!=null?ap.channel:'\u2014')+'</td>'+
+            '<td style="color:var(--dim)">'+(ap.frequency_mhz||'\u2014')+'</td>'+
+            '<td class="'+rssiClass(ap.signal_dbm)+'">'+(ap.signal_dbm!=null?ap.signal_dbm:'\u2014')+'</td>'+
+            '<td class="'+encClass(ap.encryption)+'">'+(ap.encryption||'\u2014')+'</td>'+
+            '<td style="color:var(--dim);font-size:11px">'+fmtTs(ap.first_seen)+'</td>'+
+            '<td style="font-size:11px">'+fmtTs(ap.last_seen)+'</td>'+
+            '<td style="color:var(--muted)">'+(ap.seen_count!=null?ap.seen_count:'\u2014')+'</td>';
+        if(isNew){tr.classList.add('new-row');requestAnimationFrame(function(){requestAnimationFrame(function(){tr.classList.remove('new-row');});});}
+        tr.addEventListener('click',function(){
+            var existing=tbody.querySelector('tr.detail-row[data-detail-for="'+ap.bssid+'"]');
+            if(existing){existing.remove();return;}
+            var open=tbody.querySelector('tr.detail-row');if(open)open.remove();
+            tr.insertAdjacentElement('afterend',makeDetail(ap));
+        });
+        tbody.appendChild(tr);
+        knownBssids[ap.bssid]=ap.last_seen;
     });
-
-    var tbody = document.getElementById('ap-tbody');
-
-    filtered.forEach(function(ap, idx) {
-        var bssid = ap.bssid;
-        var isNew = knownBssids[bssid] !== undefined && knownBssids[bssid] !== ap.last_seen;
-
-        var row = tbody.rows[idx];
-        if (!row) {
-            row = tbody.insertRow(idx);
-            for (var i = 0; i < 9; i++) row.insertCell(i);
-        }
-        row.cells[0].textContent = ap.ssid || '[hidden]';
-        row.cells[1].textContent = bssid;
-        row.cells[1].style.fontSize = '10px';
-        row.cells[2].textContent = ap.channel !== null && ap.channel !== undefined ? ap.channel : '\u2014';
-        row.cells[3].textContent = ap.frequency_mhz || '\u2014';
-        row.cells[3].style.color = 'var(--dim)';
-        row.cells[4].textContent = ap.signal_dbm !== null && ap.signal_dbm !== undefined ? ap.signal_dbm : '\u2014';
-        row.cells[4].className = rssiClass(ap.signal_dbm);
-        row.cells[5].textContent = ap.encryption || '\u2014';
-        row.cells[5].className = encClass(ap.encryption);
-        row.cells[6].textContent = fmtTs(ap.first_seen);
-        row.cells[6].style.color = 'var(--dim)';
-        row.cells[7].textContent = fmtTs(ap.last_seen);
-        row.cells[8].textContent = ap.seen_count !== null && ap.seen_count !== undefined ? ap.seen_count : '\u2014';
-        row.cells[8].style.color = 'var(--muted)';
-
-        if (isNew) {
-            (function(r) {
-                r.classList.add('new-row');
-                requestAnimationFrame(function() {
-                    requestAnimationFrame(function() { r.classList.remove('new-row'); });
-                });
-            })(row);
-        }
-        knownBssids[bssid] = ap.last_seen;
-    });
-
-    while (tbody.rows.length > filtered.length) {
-        tbody.deleteRow(tbody.rows.length - 1);
-    }
-    document.getElementById('ap-count').textContent = filtered.length + ' access points';
+    document.getElementById('ap-count').textContent=filtered.length+' access points';
 }
 
-function fetchAps() {
-    fetch('/api/aps').then(function(r) { return r.json(); }).then(function(data) {
-        allAps = data;
+function fetchAps(){
+    fetch('/api/aps?limit='+PAGE+'&offset=0').then(function(r){return r.json();}).then(function(data){
+        data.forEach(function(ap){
+            var i=allAps.findIndex(function(a){return a.bssid===ap.bssid;});
+            if(i>=0)allAps[i]=ap; else allAps.unshift(ap);
+        });
         renderTable();
-    }).catch(function() {});
+    }).catch(function(){});
 }
 
-var TICK = 5;
-var cd = TICK;
-setInterval(function() {
-    cd--;
-    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
-    if (cd <= 0) {
-        cd = TICK;
-        fetchAps();
-    }
-}, 1000);
+function loadMore(){
+    if(exhausted)return;
+    offset+=PAGE;
+    fetch('/api/aps?limit='+PAGE+'&offset='+offset).then(function(r){return r.json();}).then(function(data){
+        data.forEach(function(ap){
+            if(!allAps.find(function(a){return a.bssid===ap.bssid;}))allAps.push(ap);
+        });
+        if(data.length<PAGE){exhausted=true;var b=document.getElementById('load-more-btn');b.textContent='No more APs';b.disabled=true;}
+        renderTable();
+    }).catch(function(){});
+}
 
-document.getElementById('ap-filter').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') applyFilter();
-});
-
-document.querySelectorAll('thead th')[7].className = 'sort-desc';
-
+var TICK=5,cd=TICK;
+setInterval(function(){cd--;document.getElementById('tick').textContent='refresh in '+cd+'s';if(cd<=0){cd=TICK;fetchAps();}},1000);
+document.getElementById('ap-filter').addEventListener('keydown',function(e){if(e.key==='Enter')applyFilter();});
+document.querySelectorAll('thead th')[8].className='sort-desc';
 fetchAps();
 </script>
 </body>

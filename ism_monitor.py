@@ -437,7 +437,7 @@ class App:
         })
 
     async def api_signals(self, req: web.Request) -> web.Response:
-        limit = int(req.rel_url.query.get("limit", 200))
+        limit = int(req.rel_url.query.get("limit", 500))
         loop  = asyncio.get_event_loop()
         rows  = await loop.run_in_executor(None, db.get_recent_signals, limit)
         return web.json_response(rows)

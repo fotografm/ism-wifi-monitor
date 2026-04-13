@@ -1,5 +1,5 @@
 {% extends "history_base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}History WiFi{% endblock %}
 {% block content %}
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
   <h1 style="margin:0">&#128246; WiFi Probe History</h1>
@@ -30,11 +30,16 @@
   </thead>
   <tbody id="probe-tbody"></tbody>
 </table>
+<div style="text-align:center;margin:12px 0">
+  <button id="load-more-btn" onclick="loadMore()" style="padding:5px 20px;background:var(--btn-bg);border:1px solid var(--btn-border);color:var(--btn-label);border-radius:3px;font-size:11px;cursor:pointer;letter-spacing:1px">Load older probes</button>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-var knownIds = {};
+var PAGE = 200;
+var offset = 0;
+var topId = null;
 
 function rssiClass(v) {
     if (!v) return '';
@@ -49,92 +54,92 @@ function fmtTs(ts) {
     return d.toISOString().replace('T', ' ').slice(0, 19);
 }
 
+function makeRow(p) {
+    var tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', function() {
+        if (p.ie_fp) window.location.href = '/devices/' + p.ie_fp;
+    });
+    var ssidHtml = p.ssid
+        ? '<span class="tag">' + p.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>'
+        : '<span style="color:var(--dim)">wildcard</span>';
+    var rssiHtml = '<span class="' + rssiClass(p.rssi) + '">' + (p.rssi || '—') + '</span>';
+    tr.innerHTML =
+        '<td style="font-size:10px;color:var(--dim);white-space:nowrap">' + fmtTs(p.ts) + '</td>' +
+        '<td style="font-family:monospace;font-size:11px">' + p.src_mac + '</td>' +
+        '<td style="font-size:11px;color:var(--muted)">' + (p.vendor || '—') + '</td>' +
+        '<td>' + ssidHtml + '</td>' +
+        '<td>' + (p.channel || '—') + '</td>' +
+        '<td>' + rssiHtml + '</td>' +
+        '<td><span class="badge badge-' + (p.os_hint || 'unknown') + '">' + (p.os_hint || '?') + '</span></td>' +
+        '<td>' + (p.is_random ? '<span style="color:var(--value-warn)" title="Randomized MAC">R</span>' : '') + '</td>';
+    return tr;
+}
+
+function flashRow(tr) {
+    tr.style.backgroundColor = '#1a1a38';
+    tr.style.transition = 'none';
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+            tr.style.backgroundColor = '';
+            tr.style.transition = 'background-color 1.4s ease';
+        });
+    });
+}
+
+function pollNew() {
+    fetch('/api/probes/recent?limit=' + PAGE + '&offset=0')
+        .then(function(r){ return r.json(); })
+        .then(function(rows){
+            var tbody = document.getElementById('probe-tbody');
+            var newRows = topId === null ? rows : rows.filter(function(p){ return p.id > topId; });
+            if (newRows.length > 0) {
+                topId = rows[0].id;
+                newRows.reverse().forEach(function(p) {
+                    var tr = makeRow(p);
+                    flashRow(tr);
+                    tbody.insertBefore(tr, tbody.firstChild);
+                });
+            }
+            if (topId === null && rows.length > 0) topId = rows[0].id;
+        }).catch(function(){});
+}
+
+function loadMore() {
+    offset += PAGE;
+    fetch('/api/probes/recent?limit=' + PAGE + '&offset=' + offset)
+        .then(function(r){ return r.json(); })
+        .then(function(rows){
+            var tbody = document.getElementById('probe-tbody');
+            rows.forEach(function(p) {
+                tbody.appendChild(makeRow(p));
+            });
+            if (rows.length < PAGE) {
+                document.getElementById('load-more-btn').textContent = 'No more probes';
+                document.getElementById('load-more-btn').disabled = true;
+            }
+        }).catch(function(){});
+}
+
 function updateStats() {
     fetch('/api/stats').then(function(r){ return r.json(); }).then(function(d){
-        document.getElementById('st-1h').textContent   = d.probes_1h   !== undefined ? d.probes_1h   : '—';
-        document.getElementById('st-24h').textContent  = d.probes_24h  !== undefined ? d.probes_24h  : '—';
-        document.getElementById('st-all').textContent  = d.probes_all  !== undefined ? d.probes_all  : '—';
-        document.getElementById('st-fps').textContent  = d.unique_fps  !== undefined ? d.unique_fps  : '—';
-        document.getElementById('st-aps').textContent  = d.unique_aps  !== undefined ? d.unique_aps  : '—';
+        document.getElementById('st-1h').textContent    = d.probes_1h    !== undefined ? d.probes_1h    : '—';
+        document.getElementById('st-24h').textContent   = d.probes_24h   !== undefined ? d.probes_24h   : '—';
+        document.getElementById('st-all').textContent   = d.probes_all   !== undefined ? d.probes_all   : '—';
+        document.getElementById('st-fps').textContent   = d.unique_fps   !== undefined ? d.unique_fps   : '—';
+        document.getElementById('st-aps').textContent   = d.unique_aps   !== undefined ? d.unique_aps   : '—';
         document.getElementById('st-ssids').textContent = d.unique_ssids !== undefined ? d.unique_ssids : '—';
     }).catch(function(){});
 }
 
-function updateProbes() {
-    fetch('/api/probes/recent').then(function(r){ return r.json(); }).then(function(rows){
-        var tbody = document.getElementById('probe-tbody');
-
-        rows.forEach(function(p, idx) {
-            var key = p.id;
-            var isNew = !knownIds[key];
-            knownIds[key] = true;
-
-            var row = tbody.rows[idx];
-            if (!row) {
-                row = tbody.insertRow(idx);
-                row.style.cursor = 'pointer';
-                for (var i = 0; i < 8; i++) row.insertCell(i);
-                (function(r, fp) {
-                    r.addEventListener('click', function() {
-                        if (fp) window.location.href = '/devices/' + fp;
-                    });
-                })(row, p.ie_fp);
-            }
-
-            row.cells[0].textContent = fmtTs(p.ts);
-            row.cells[0].style.cssText = 'font-size:10px;color:var(--dim);white-space:nowrap';
-
-            row.cells[1].textContent = p.src_mac;
-            row.cells[1].style.cssText = 'font-family:monospace;font-size:11px';
-
-            row.cells[2].textContent = p.vendor || '—';
-            row.cells[2].style.cssText = 'font-size:11px;color:var(--muted)';
-
-            if (p.ssid) {
-                row.cells[3].innerHTML = '<span class="tag">' + p.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>';
-            } else {
-                row.cells[3].innerHTML = '<span style="color:var(--dim)">wildcard</span>';
-            }
-
-            row.cells[4].textContent = p.channel || '—';
-
-            row.cells[5].textContent = p.rssi || '—';
-            row.cells[5].className = rssiClass(p.rssi);
-
-            row.cells[6].innerHTML = '<span class="badge badge-' + (p.os_hint || 'unknown') + '">' + (p.os_hint || '?') + '</span>';
-
-            row.cells[7].innerHTML = p.is_random ? '<span style="color:var(--value-warn)" title="Randomized MAC">R</span>' : '';
-
-            if (isNew) {
-                row.style.backgroundColor = '#1a1a38';
-                row.style.transition = 'none';
-                requestAnimationFrame(function() {
-                    requestAnimationFrame(function() {
-                        row.style.backgroundColor = '';
-                        row.style.transition = 'background-color 1.4s ease';
-                    });
-                });
-            }
-        });
-
-        while (tbody.rows.length > rows.length) {
-            tbody.deleteRow(tbody.rows.length - 1);
-        }
-    }).catch(function(){});
-}
-
-var TICK = 3, cd = TICK;
+/* initial load then poll for new rows every 3s */
+pollNew();
+updateStats();
+var cd = 3;
 setInterval(function() {
     cd--;
     document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
-    if (cd <= 0) {
-        cd = TICK;
-        updateProbes();
-        updateStats();
-    }
+    if (cd <= 0) { cd = 3; pollNew(); updateStats(); }
 }, 1000);
-
-updateProbes();
-updateStats();
 </script>
 {% endblock %}

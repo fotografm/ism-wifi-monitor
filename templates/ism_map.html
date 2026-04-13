@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Map — raspi81</title>
+<title>ISM Transmitters &#8212; raspi81</title>
 <link rel="stylesheet" href="/raspi-style.css">
 <link rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -83,10 +83,9 @@ html, body { height:100%; overflow:hidden; padding:0; }
 
 <div id="topbar">
     <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">← Home</a>
-    <h1>&#128506; ISM Map</h1>
+    <h1>&#128225; ISM Transmitters</h1>
     <button id="track-btn" title="Follow GPS position">📍 Track: OFF</button>
-    <button id="center-btn" title="Centre on current position">⊕ Centre</button>
-    <div id="gps-status">GPS: <span id="gps-txt" class="nofix">NO GPS</span></div>
+    <button id="center-btn" title="Centre on current position">&#8853; Centre</button>
     <div id="sig-count">Transmitters: <span id="tx-count">0</span></div>
 </div>
 
@@ -201,18 +200,13 @@ function connect() {
 }
 
 function handleGps(d) {
-    const txt = document.getElementById('gps-txt');
     if (d.status === 'FIX' && d.lat && d.lon) {
-        txt.className = 'fix';
-        txt.textContent = `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}`;
         lastGpsPos = d;
         if (gpsMarker) { gpsMarker.setLatLng([d.lat, d.lon]); }
         else { gpsMarker = L.marker([d.lat, d.lon], { icon: gpsIcon })
                     .bindTooltip('Your position', { permanent: false }).addTo(map); }
         if (tracking) map.setView([d.lat, d.lon]);
     } else {
-        txt.className = 'nofix';
-        txt.textContent = d.status;
         if (gpsMarker) { gpsMarker.remove(); gpsMarker = null; }
     }
 }

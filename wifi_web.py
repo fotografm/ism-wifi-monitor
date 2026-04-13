@@ -481,6 +481,8 @@ def wifi_map():
 
 @app.route('/api/aps')
 def api_aps():
+    limit  = int(request.args.get('limit', 200))
+    offset = int(request.args.get('offset', 0))
     dbconn = get_db()
     rows = dbconn.execute('''
         SELECT
@@ -495,7 +497,8 @@ def api_aps():
             ORDER BY timestamp DESC LIMIT 1
         )
         ORDER BY ap.last_seen DESC
-    ''').fetchall()
+        LIMIT ? OFFSET ?
+    ''', (limit, offset)).fetchall()
     result = []
     for r in rows:
         d = dict(r)
