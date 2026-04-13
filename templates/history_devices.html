@@ -1,23 +1,58 @@
 {% extends "history_base.html" %}
-{% block title %}Devices{% endblock %}
+{% block title %}History WiFi — Devices{% endblock %}
 {% block content %}
-<h1>Device Fingerprints</h1>
-<p style="color:var(--dim);font-size:11px;margin-bottom:14px">
-  Each row is one unique physical device fingerprint, stable across MAC rotation. Click any device to see full details.
-</p>
-{% for d in devices %}
-<div class="device-card">
-  <div class="device-hdr">
-    <span class="badge badge-{{ d.os_hint or "unknown" }}">{{ d.os_hint or "unknown" }}</span>
-    <span class="device-vendor">{{ d.vendor or "Unknown vendor" }}</span>
-    <span style="font-family:monospace;font-size:10px;color:var(--dim)" title="{{ d.fp_hash }}">fp:{{ d.fp_hash[:16] }}&#8230;</span>
-    <span class="chip">{{ d.probe_count }} probes</span>
-    <span class="chip">{{ d.mac_count }} MAC{{ "s" if d.mac_count != 1 else "" }}</span>
-    <span class="chip">{{ fmt_ago(d.last_seen) }}</span>
-    <a href="/devices/{{ d.fp_hash }}" class="page-btn" style="font-size:10px;padding:2px 8px">Detail &#8594;</a>
-  </div>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+  <h1 style="margin:0">Device Fingerprints</h1>
+  <span id="tick" style="font-size:10px;color:var(--dim);margin-left:auto"></span>
 </div>
-{% else %}
-<p class="no-data">No device fingerprints yet — waiting for probe requests.</p>
-{% endfor %}
+<p style="color:var(--dim);font-size:11px;margin-bottom:14px">
+  Each row is one unique physical device fingerprint, stable across MAC rotation. Click for detail.
+</p>
+<div id="devices-list"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+function fmtAgo(ts) {
+    if (!ts) return '—';
+    var d = Math.floor(Date.now()/1000 - ts);
+    if (d < 60)    return d + 's ago';
+    if (d < 3600)  return Math.floor(d/60) + 'm ago';
+    if (d < 86400) return Math.floor(d/3600) + 'h ago';
+    return Math.floor(d/86400) + 'd ago';
+}
+function load() {
+    fetch('/api/devices').then(function(r){ return r.json(); }).then(function(rows){
+        var list = document.getElementById('devices-list');
+        list.innerHTML = '';
+        if (!rows.length) {
+            list.innerHTML = '<p class="no-data">No device fingerprints yet.</p>';
+            return;
+        }
+        rows.forEach(function(d) {
+            var div = document.createElement('div');
+            div.className = 'device-card';
+            div.style.cursor = 'pointer';
+            div.addEventListener('click', function(){ window.location.href = '/devices/' + d.fp_hash; });
+            div.innerHTML =
+                '<div class="device-hdr">' +
+                '<span class="badge badge-' + (d.os_hint||'unknown') + '">' + (d.os_hint||'unknown') + '</span>' +
+                '<span class="device-vendor">' + (d.vendor||'Unknown vendor') + '</span>' +
+                '<span style="font-family:monospace;font-size:10px;color:var(--dim)" title="' + d.fp_hash + '">fp:' + d.fp_hash.slice(0,16) + '&hellip;</span>' +
+                '<span class="chip">' + (d.probe_count||0) + ' probes</span>' +
+                '<span class="chip">' + (d.mac_count||0) + ' MAC' + (d.mac_count!==1?'s':'') + '</span>' +
+                '<span class="chip">' + fmtAgo(d.last_seen) + '</span>' +
+                '<span style="font-size:10px;color:var(--heading)">Detail &rarr;</span>' +
+                '</div>';
+            list.appendChild(div);
+        });
+    }).catch(function(){});
+}
+var cd = 10;
+setInterval(function(){
+    cd--;
+    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
+    if (cd <= 0) { cd = 10; load(); }
+}, 1000);
+load();
+</script>
 {% endblock %}

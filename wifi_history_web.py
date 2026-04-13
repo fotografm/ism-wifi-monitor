@@ -221,8 +221,32 @@ async def api_recent_probes(request):
     return json_resp(result)
 
 
-async def api_channel_dist(request):
-    rows = await db_call(db.q_probes_per_channel)
+async def api_ssids(request):
+    rows = await db_call(db.q_ssids)
+    return json_resp([dict(r) for r in rows])
+
+
+async def api_aps(request):
+    rows = await db_call(db.q_aps)
+    return json_resp([dict(r) for r in rows])
+
+
+async def api_devices(request):
+    devices = await db_call(db.q_devices)
+    result = []
+    for d in devices:
+        dd = dict(d)
+        dd['vendor'] = oui.lookup(d['last_mac']) if d['last_mac'] else None
+        result.append(dd)
+    return json_resp(result)
+
+
+async def api_associations(request):
+    rows = await db_call(db.q_associations, 500)
+    return json_resp([dict(r) for r in rows])
+
+
+async def api_channel_dist(request):    rows = await db_call(db.q_probes_per_channel)
     return json_resp([dict(r) for r in rows])
 
 
@@ -258,6 +282,10 @@ def make_app():
     app.router.add_get('/api/probes/recent',                 api_recent_probes)
     app.router.add_get('/api/channel_dist',                  api_channel_dist)
     app.router.add_get('/api/trend',                         api_trend)
+    app.router.add_get('/api/ssids',                         api_ssids)
+    app.router.add_get('/api/aps',                           api_aps)
+    app.router.add_get('/api/devices',                       api_devices)
+    app.router.add_get('/api/associations',                  api_associations)
     return app
 
 

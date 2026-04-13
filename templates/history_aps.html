@@ -1,23 +1,69 @@
 {% extends "history_base.html" %}
-{% block title %}Access Points{% endblock %}
+{% block title %}History WiFi — APs{% endblock %}
 {% block content %}
-<h1>Access Points</h1>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+  <h1 style="margin:0">Access Points</h1>
+  <span id="tick" style="font-size:10px;color:var(--dim);margin-left:auto"></span>
+</div>
 <p style="color:var(--dim);font-size:11px;margin-bottom:14px">Discovered from beacon frames. Updated every 30s per BSSID.</p>
 <table>
-  <thead><tr><th>SSID</th><th>BSSID</th><th>Ch</th><th>dBm</th><th>Beacons</th><th>First seen</th><th>Last seen</th></tr></thead>
-  <tbody>
-  {% for ap in aps %}
-  <tr>
-    <td>{% if ap.ssid %}<span class="tag">{{ ap.ssid }}</span>{% else %}<span style="color:var(--dim)">Hidden</span>{% endif %}</td>
-    <td style="font-family:monospace;font-size:11px">{{ ap.bssid }}</td>
-    <td>{{ ap.channel or "—" }}</td>
-    <td class="{% if ap.rssi and ap.rssi > -60 %}rssi-good{% elif ap.rssi and ap.rssi > -80 %}rssi-ok{% else %}rssi-weak{% endif %}">{{ ap.rssi or "—" }}</td>
-    <td style="color:var(--muted)">{{ ap.beacon_count }}</td>
-    <td style="color:var(--dim);white-space:nowrap;font-size:11px">{{ fmt_ts(ap.first_seen) }}</td>
-    <td style="color:var(--muted);font-size:11px">{{ fmt_ago(ap.last_seen) }}</td>
-  </tr>
-  {% else %}<tr><td colspan="7" class="no-data">No APs seen yet</td></tr>
-  {% endfor %}
-  </tbody>
+  <thead><tr>
+    <th>SSID</th><th>BSSID</th><th>Ch</th><th>dBm</th>
+    <th style="text-align:right">Beacons</th><th>First seen</th><th>Last seen</th>
+  </tr></thead>
+  <tbody id="aps-tbody"></tbody>
 </table>
+{% endblock %}
+{% block scripts %}
+<script>
+function fmtTs(ts) {
+    if (!ts) return '—';
+    return new Date(ts * 1000).toISOString().replace('T',' ').slice(0,19);
+}
+function fmtAgo(ts) {
+    if (!ts) return '—';
+    var d = Math.floor(Date.now()/1000 - ts);
+    if (d < 60)    return d + 's ago';
+    if (d < 3600)  return Math.floor(d/60) + 'm ago';
+    if (d < 86400) return Math.floor(d/3600) + 'h ago';
+    return Math.floor(d/86400) + 'd ago';
+}
+function rssiClass(v) {
+    if (!v) return 'color:var(--dim)';
+    if (v > -60) return 'color:var(--value-green)';
+    if (v > -80) return 'color:var(--value-warn)';
+    return 'color:var(--value-alert)';
+}
+function load() {
+    fetch('/api/aps').then(function(r){ return r.json(); }).then(function(rows){
+        var tbody = document.getElementById('aps-tbody');
+        tbody.innerHTML = '';
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="no-data">No APs seen yet</td></tr>';
+            return;
+        }
+        rows.forEach(function(ap) {
+            var tr = document.createElement('tr');
+            var ssid = ap.ssid ? '<span class="tag">' + ap.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>'
+                               : '<span style="color:var(--dim)">Hidden</span>';
+            tr.innerHTML =
+                '<td>' + ssid + '</td>' +
+                '<td style="font-family:monospace;font-size:11px">' + (ap.bssid||'—') + '</td>' +
+                '<td>' + (ap.channel||'—') + '</td>' +
+                '<td style="' + rssiClass(ap.rssi) + '">' + (ap.rssi||'—') + '</td>' +
+                '<td style="text-align:right;color:var(--muted)">' + (ap.beacon_count||0) + '</td>' +
+                '<td style="color:var(--dim);white-space:nowrap;font-size:11px">' + fmtTs(ap.first_seen) + '</td>' +
+                '<td style="color:var(--muted);font-size:11px">' + fmtAgo(ap.last_seen) + '</td>';
+            tbody.appendChild(tr);
+        });
+    }).catch(function(){});
+}
+var cd = 10;
+setInterval(function(){
+    cd--;
+    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
+    if (cd <= 0) { cd = 10; load(); }
+}, 1000);
+load();
+</script>
 {% endblock %}

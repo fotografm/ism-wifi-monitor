@@ -1,25 +1,65 @@
 {% extends "history_base.html" %}
-{% block title %}Associations{% endblock %}
+{% block title %}History WiFi — Associations{% endblock %}
 {% block content %}
-<h1>Associations &amp; Authentication</h1>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+  <h1 style="margin:0">Associations &amp; Authentication</h1>
+  <span id="tick" style="font-size:10px;color:var(--dim);margin-left:auto"></span>
+</div>
 <p style="color:var(--dim);font-size:11px;margin-bottom:14px">
   Management frames from the 802.11 join handshake. Auth (11) precedes Assoc Req (0). Modern devices use per-network randomized MACs.
 </p>
 <table>
-  <thead><tr><th>Time</th><th>Type</th><th>Client MAC</th><th>BSSID</th><th>SSID</th><th>Ch</th><th>dBm</th></tr></thead>
-  <tbody>
-  {% for a in assocs %}
-  <tr>
-    <td style="font-size:10px;color:var(--dim);white-space:nowrap">{{ fmt_ts(a.ts) }}</td>
-    <td><span class="badge badge-{{ "android" if a.frame_subtype == 0 else "ios" if a.frame_subtype == 1 else "unknown" }}">{{ fmt_subtype(a.frame_subtype) }}</span></td>
-    <td style="font-family:monospace;font-size:11px">{{ a.src_mac }}</td>
-    <td style="font-family:monospace;font-size:11px;color:var(--dim)">{{ a.bssid }}</td>
-    <td>{% if a.ssid %}<span class="tag">{{ a.ssid }}</span>{% else %}—{% endif %}</td>
-    <td>{{ a.channel or "—" }}</td>
-    <td class="{% if a.rssi and a.rssi > -60 %}rssi-good{% elif a.rssi and a.rssi > -80 %}rssi-ok{% else %}rssi-weak{% endif %}">{{ a.rssi or "—" }}</td>
-  </tr>
-  {% else %}<tr><td colspan="7" class="no-data">No association frames captured yet</td></tr>
-  {% endfor %}
-  </tbody>
+  <thead><tr>
+    <th>Time</th><th>Type</th><th>Client MAC</th>
+    <th>BSSID</th><th>SSID</th><th>Ch</th><th>dBm</th>
+  </tr></thead>
+  <tbody id="assoc-tbody"></tbody>
 </table>
+{% endblock %}
+{% block scripts %}
+<script>
+function fmtTs(ts) {
+    if (!ts) return '—';
+    return new Date(ts * 1000).toISOString().replace('T',' ').slice(0,19);
+}
+function fmtSubtype(st) {
+    return {0:'Assoc Req', 1:'Assoc Resp', 11:'Auth'}[st] || String(st);
+}
+function rssiClass(v) {
+    if (!v) return 'color:var(--dim)';
+    if (v > -60) return 'color:var(--value-green)';
+    if (v > -80) return 'color:var(--value-warn)';
+    return 'color:var(--value-alert)';
+}
+function load() {
+    fetch('/api/associations').then(function(r){ return r.json(); }).then(function(rows){
+        var tbody = document.getElementById('assoc-tbody');
+        tbody.innerHTML = '';
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="no-data">No association frames captured yet</td></tr>';
+            return;
+        }
+        rows.forEach(function(a) {
+            var tr = document.createElement('tr');
+            var ssid = a.ssid ? '<span class="tag">' + a.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' : '—';
+            tr.innerHTML =
+                '<td style="font-size:10px;color:var(--dim);white-space:nowrap">' + fmtTs(a.ts) + '</td>' +
+                '<td><span class="badge badge-unknown">' + fmtSubtype(a.frame_subtype) + '</span></td>' +
+                '<td style="font-family:monospace;font-size:11px">' + (a.src_mac||'—') + '</td>' +
+                '<td style="font-family:monospace;font-size:11px;color:var(--dim)">' + (a.bssid||'—') + '</td>' +
+                '<td>' + ssid + '</td>' +
+                '<td>' + (a.channel||'—') + '</td>' +
+                '<td style="' + rssiClass(a.rssi) + '">' + (a.rssi||'—') + '</td>';
+            tbody.appendChild(tr);
+        });
+    }).catch(function(){});
+}
+var cd = 5;
+setInterval(function(){
+    cd--;
+    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
+    if (cd <= 0) { cd = 5; load(); }
+}, 1000);
+load();
+</script>
 {% endblock %}

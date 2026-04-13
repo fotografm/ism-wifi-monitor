@@ -1,25 +1,66 @@
 {% extends "history_base.html" %}
-{% block title %}SSID History{% endblock %}
+{% block title %}History WiFi — SSIDs{% endblock %}
 {% block content %}
-<h1>Directed SSID History</h1>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+  <h1 style="margin:0">Directed SSIDs</h1>
+  <span id="tick" style="font-size:10px;color:var(--dim);margin-left:auto"></span>
+</div>
 <p style="color:var(--dim);font-size:11px;margin-bottom:14px">
-  Network names in directed probe requests — SSIDs that nearby devices are actively searching for, revealing previously joined networks.
+  Network names seen in directed probe requests — SSIDs devices are actively searching for, revealing previously joined networks.
 </p>
 <table>
-  <thead><tr><th>SSID</th><th style="text-align:right">Probes</th><th style="text-align:right">MACs</th><th style="text-align:right">Devices</th><th>First seen</th><th>Last seen</th></tr></thead>
-  <tbody>
-  {% for s in ssids %}
-  <tr>
-    <td><span class="tag" style="max-width:380px">{{ s.ssid }}</span></td>
-    <td style="text-align:right">{{ s.probe_count }}</td>
-    <td style="text-align:right;color:var(--muted)">{{ s.mac_count }}</td>
-    <td style="text-align:right;color:var(--muted)">{{ s.device_count }}</td>
-    <td style="color:var(--dim);white-space:nowrap;font-size:11px">{{ fmt_ts(s.first_seen) }}</td>
-    <td style="color:var(--muted);font-size:11px">{{ fmt_ago(s.last_seen) }}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="6" class="no-data">No directed SSIDs yet — modern devices mostly send wildcard probes.</td></tr>
-  {% endfor %}
-  </tbody>
+  <thead><tr>
+    <th>SSID</th>
+    <th style="text-align:right">Probes</th>
+    <th style="text-align:right">MACs</th>
+    <th style="text-align:right">Devices</th>
+    <th>First seen</th>
+    <th>Last seen</th>
+  </tr></thead>
+  <tbody id="ssid-tbody"></tbody>
 </table>
+{% endblock %}
+{% block scripts %}
+<script>
+function fmtTs(ts) {
+    if (!ts) return '—';
+    return new Date(ts * 1000).toISOString().replace('T',' ').slice(0,19);
+}
+function fmtAgo(ts) {
+    if (!ts) return '—';
+    var d = Math.floor(Date.now()/1000 - ts);
+    if (d < 60)    return d + 's ago';
+    if (d < 3600)  return Math.floor(d/60) + 'm ago';
+    if (d < 86400) return Math.floor(d/3600) + 'h ago';
+    return Math.floor(d/86400) + 'd ago';
+}
+function load() {
+    fetch('/api/ssids').then(function(r){ return r.json(); }).then(function(rows){
+        var tbody = document.getElementById('ssid-tbody');
+        tbody.innerHTML = '';
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="no-data">No directed SSIDs yet — modern devices mostly send wildcard probes.</td></tr>';
+            return;
+        }
+        rows.forEach(function(s) {
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td><span class="tag" style="max-width:380px">' + (s.ssid||'').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span></td>' +
+                '<td style="text-align:right">' + (s.probe_count||0) + '</td>' +
+                '<td style="text-align:right;color:var(--muted)">' + (s.mac_count||0) + '</td>' +
+                '<td style="text-align:right;color:var(--muted)">' + (s.device_count||0) + '</td>' +
+                '<td style="color:var(--dim);white-space:nowrap;font-size:11px">' + fmtTs(s.first_seen) + '</td>' +
+                '<td style="color:var(--muted);font-size:11px">' + fmtAgo(s.last_seen) + '</td>';
+            tbody.appendChild(tr);
+        });
+    }).catch(function(){});
+}
+var cd = 10;
+setInterval(function(){
+    cd--;
+    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
+    if (cd <= 0) { cd = 10; load(); }
+}, 1000);
+load();
+</script>
 {% endblock %}
