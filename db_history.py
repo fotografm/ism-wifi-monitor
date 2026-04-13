@@ -283,6 +283,8 @@ def q_devices(conn):
         LEFT JOIN mac_fp_map m ON f.fp_hash = m.fp_hash
         GROUP BY f.fp_hash
         ORDER BY f.last_seen DESC
+        """
+    ).fetchall()
 
 
 def q_device_by_hash(conn, fp_hash):
