@@ -677,7 +677,64 @@ def ap_detail_page(bssid: str):
     return render_template('wifi_ap_detail.html', bssid=bssid)
 
 
-@app.route('/api/ap/<bssid>/associations')
+@app.route('/api/client/<mac>')
+def api_client_detail(mac: str):
+    dbconn = get_db()
+
+    # All APs this client has been seen connected to
+    aps = dbconn.execute('''
+        SELECT cs.bssid,
+               ap.ssid,
+               ap.encryption,
+               COUNT(*)        AS sight_count,
+               MIN(cs.timestamp) AS first_seen,
+               MAX(cs.timestamp) AS last_seen,
+               ROUND(AVG(cs.signal_dbm)) AS avg_signal
+        FROM client_sightings cs
+        LEFT JOIN access_points ap ON ap.bssid = cs.bssid
+        WHERE cs.client_mac = ?
+        GROUP BY cs.bssid
+        ORDER BY last_seen DESC
+    ''', (mac,)).fetchall()
+
+    # Association frames for this client
+    assocs = dbconn.execute('''
+        SELECT timestamp, frame_subtype, bssid, ssid, signal_dbm, channel,
+               CASE frame_subtype
+                   WHEN 0  THEN "Assoc Req"
+                   WHEN 1  THEN "Assoc Resp"
+                   WHEN 2  THEN "Reassoc Req"
+                   WHEN 3  THEN "Reassoc Resp"
+                   WHEN 11 THEN "Auth"
+                   ELSE CAST(frame_subtype AS TEXT)
+               END AS frame_label
+        FROM associations
+        WHERE client_mac = ?
+        ORDER BY timestamp DESC
+        LIMIT 100
+    ''', (mac,)).fetchall()
+
+    # Signal history (last 50 sightings across all APs)
+    history = dbconn.execute('''
+        SELECT timestamp, bssid, signal_dbm, channel
+        FROM client_sightings
+        WHERE client_mac = ?
+        ORDER BY timestamp DESC
+        LIMIT 50
+    ''', (mac,)).fetchall()
+
+    oui, manuf_long, _ = _oui_lookup(mac)
+
+    return jsonify({
+        'mac':          mac,
+        'oui':          oui,
+        'manufacturer': manuf_long,
+        'aps':          [dict(r) for r in aps],
+        'associations': [dict(r) for r in assocs],
+        'history':      [dict(r) for r in history],
+    })
+
+
 def api_ap_associations(bssid: str):
     dbconn = get_db()
     rows = dbconn.execute('''
