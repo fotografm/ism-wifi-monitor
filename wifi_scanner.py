@@ -28,6 +28,7 @@ from config import (
     ALL_CHANNELS, CHANNEL_DWELL, DB_WIFI_PATH as DB_PATH,
     GPS_HOST, GPS_PORT, SIGHTING_DISTANCE, SIGHTING_INTERVAL, WIFI_IFACE,
 )
+from db_wifi import init_db
 from gps_reader_sync import GPSReader
 
 logging.basicConfig(
@@ -374,27 +375,30 @@ def handle_frame(pkt) -> None:
     if not pkt.haslayer(Dot11):
         return
 
-    ftype   = pkt[Dot11].type
-    subtype = pkt[Dot11].subtype
+    try:
+        ftype   = pkt[Dot11].type
+        subtype = pkt[Dot11].subtype
+    except Exception:
+        return
 
     if ftype == 0:  # management
-        if subtype in (8, 5):  # beacon, probe resp
-            if not (pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp)):
-                return
-            bssid = pkt[Dot11].addr3
-            if not bssid or bssid == 'ff:ff:ff:ff:ff:ff':
-                return
-            ssid       = _parse_ssid(pkt)
-            signal_dbm = _parse_signal(pkt)
-            channel    = _parse_channel(pkt)
-            freq       = _channel_to_freq(channel) if channel else None
-            encryption = _parse_encryption(pkt)
-            caps       = _cap_str(pkt)
-            pos = gps.get_position()
-            lat = pos['lat']; lon = pos['lon']; alt = pos['alt']
-            fix = 1 if pos['fix'] else 0
-            now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        if subtype in (8, 5):  # beacon, probe resp — CRITICAL PATH
             try:
+                if not (pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp)):
+                    return
+                bssid = pkt[Dot11].addr3
+                if not bssid or bssid == 'ff:ff:ff:ff:ff:ff':
+                    return
+                ssid       = _parse_ssid(pkt)
+                signal_dbm = _parse_signal(pkt)
+                channel    = _parse_channel(pkt)
+                freq       = _channel_to_freq(channel) if channel else None
+                encryption = _parse_encryption(pkt)
+                caps       = _cap_str(pkt)
+                pos = gps.get_position()
+                lat = pos['lat']; lon = pos['lon']; alt = pos['alt']
+                fix = 1 if pos['fix'] else 0
+                now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
                 _upsert_ap(bssid, ssid, encryption, caps, now)
                 if _should_sight(bssid, lat, lon):
                     _insert_sighting(bssid, signal_dbm, channel, freq,
@@ -402,13 +406,19 @@ def handle_frame(pkt) -> None:
                 else:
                     _update_ap_rssi(bssid, signal_dbm, channel, now)
             except Exception as exc:
-                log.error('DB write error for %s: %s', bssid, exc)
+                log.error('Beacon handler error for %s: %s', bssid if 'bssid' in dir() else '?', exc)
 
-        elif subtype in (0, 1, 2, 3, 11):  # assoc req/resp, reassoc req/resp, auth
-            handle_association(pkt, subtype)
+        elif subtype in (0, 1, 2, 3, 11):  # assoc/auth — best effort
+            try:
+                handle_association(pkt, subtype)
+            except Exception as exc:
+                log.debug('Assoc dispatch error: %s', exc)
 
-    elif ftype == 2:  # data
-        handle_data(pkt)
+    elif ftype == 2:  # data — best effort, never touches beacon tables
+        try:
+            handle_data(pkt)
+        except Exception as exc:
+            log.debug('Data dispatch error: %s', exc)
 
 
 def channel_hopper() -> None:
@@ -434,6 +444,9 @@ def _handle_signal(signum, _frame) -> None:
 def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT,  _handle_signal)
+
+    log.info('Initialising database tables')
+    init_db()
 
     log.info('WiFi scanner starting on interface %s', WIFI_IFACE)
     log.info('Channels: %d total, dwell %.1f s each', len(ALL_CHANNELS), CHANNEL_DWELL)

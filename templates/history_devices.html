@@ -12,7 +12,7 @@
 {% endblock %}
 {% block scripts %}
 <script>
-function load() {function load() {
+function load() {
     fetch('/api/devices').then(function(r){ return r.json(); }).then(function(rows){
         var list = document.getElementById('devices-list');
         list.innerHTML = '';
