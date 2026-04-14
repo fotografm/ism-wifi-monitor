@@ -117,7 +117,9 @@ function rssiClass(rssi) {
 
 function fmtTs(ts) {
     if (!ts) return '\u2014';
-    return ts.replace('T', ' ').slice(0, 16);
+    try { return new Date(ts).toLocaleString('de-DE', {timeZone:'Europe/Berlin',
+        year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+    catch(e) { return ts.replace('T',' ').slice(0,16); }
 }
 
 function encClass(enc) {

@@ -160,7 +160,9 @@ function makeIcon(enc) {
 function fmtTs(ts) {
     if (!ts) return '—';
     var d = (typeof ts === 'number') ? new Date(ts * 1000) : new Date(ts);
-    return isNaN(d) ? String(ts) : d.toISOString().replace('T',' ').slice(0,19);
+    try { return isNaN(d) ? String(ts) : d.toLocaleString('de-DE', {timeZone:'Europe/Berlin',
+        year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+    catch(e) { return isNaN(d) ? String(ts) : d.toISOString().replace('T',' ').slice(0,16); }
 }
 
 function encClass(enc) {
