@@ -48,12 +48,6 @@ function rssiClass(v) {
     return 'rssi-weak';
 }
 
-function fmtTs(ts) {
-    if (!ts) return '—';
-    var d = new Date(ts * 1000);
-    return d.toISOString().replace('T', ' ').slice(0, 19);
-}
-
 function makeRow(p) {
     var tr = document.createElement('tr');
     tr.style.cursor = 'pointer';

@@ -18,10 +18,6 @@
 {% endblock %}
 {% block scripts %}
 <script>
-function fmtTs(ts) {
-    if (!ts) return '—';
-    return new Date(ts * 1000).toISOString().replace('T',' ').slice(0,19);
-}
 function fmtSubtype(st) {
     return {0:'Assoc Req', 1:'Assoc Resp', 11:'Auth'}[st] || String(st);
 }

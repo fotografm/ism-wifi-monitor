@@ -126,7 +126,13 @@ tr.client-panel-row td { padding:0; }
 var BSSID = {{ bssid | tojson }};
 var apMap = null, apMarker = null;
 
-function fmtTs(ts) { return ts ? ts.replace('T',' ').slice(0,19) : '—'; }
+var _TZ = 'Europe/Berlin';
+function fmtTs(ts) {
+    if (!ts) return '—';
+    try { return new Date(ts).toLocaleString('de-DE', {timeZone:_TZ,
+        year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+    catch(e) { return String(ts).slice(0,19); }
+}
 function fmtAgo(ts) {
     if (!ts) return '—';
     var d = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);

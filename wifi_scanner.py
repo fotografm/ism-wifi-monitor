@@ -272,18 +272,30 @@ def _cap_str(pkt) -> str:
         return ''
 
 
+def _radiotap_channel(pkt) -> Optional[int]:
+    """Extract channel from RadioTap — safe for all frame types, no IE walk."""
+    try:
+        freq = int(pkt[RadioTap].Channel)
+        if 2412 <= freq <= 2472:
+            return (freq - 2412) // 5 + 1
+        if freq == 2484:
+            return 14
+        if 5170 <= freq <= 5825:
+            return (freq - 5000) // 5
+    except Exception:
+        pass
+    return None
+
+
 def handle_association(pkt, subtype: int) -> None:
     """Capture management frames: assoc req(0), assoc resp(1), reassoc req(2),
     reassoc resp(3), auth(11). Records client MAC associating with BSSID."""
     try:
         dot11 = pkt[Dot11]
-        # For assoc req/reassoc req: addr2=client, addr1=AP (BSSID)
-        # For assoc resp: addr1=client, addr2=AP
-        # For auth: addr2=initiator, addr3=BSSID
         if subtype in (0, 2, 11):   # client→AP direction
             client_mac = dot11.addr2
             bssid      = dot11.addr1 if subtype == 11 else dot11.addr3
-        else:                        # AP→client (resp)
+        else:                        # AP→client resp
             client_mac = dot11.addr1
             bssid      = dot11.addr2
 
@@ -293,61 +305,53 @@ def handle_association(pkt, subtype: int) -> None:
             return
 
         signal_dbm = _parse_signal(pkt)
-        channel    = _parse_channel(pkt)
+        channel    = _radiotap_channel(pkt)
 
         ssid = None
-        if subtype in (0, 2):   # assoc/reassoc req contain SSID
+        if subtype in (0, 2):
             ssid = _parse_ssid(pkt) or None
 
         now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        # Deduplicate: skip if same (client, bssid, subtype) seen within 5s
         key = (client_mac, bssid, subtype)
         with _assoc_lock:
-            last = _last_assoc.get(key, 0)
             now_mono = time.monotonic()
-            if now_mono - last < 5.0:
+            if now_mono - _last_assoc.get(key, 0) < 5.0:
                 return
             _last_assoc[key] = now_mono
 
         _insert_association(now, subtype, client_mac, bssid, ssid, signal_dbm, channel)
-        log.debug('Assoc subtype=%d client=%s bssid=%s ssid=%s',
-                  subtype, client_mac, bssid, ssid)
+        log.debug('Assoc subtype=%d client=%s bssid=%s', subtype, client_mac, bssid)
     except Exception as exc:
         log.debug('handle_association error: %s', exc)
 
 
 def handle_data(pkt) -> None:
-    """Extract client↔AP relationships from data frames.
-    DS bits tell direction: ToDS=1/FromDS=0 → client→AP, ToDS=0/FromDS=1 → AP→client.
-    Infrastructure data frames always have exactly one client MAC and one BSSID."""
+    """Extract client↔AP relationships from data frames using DS bits.
+    Uses RadioTap for channel — never walks IEs (data frames have none)."""
     try:
-        dot11 = pkt[Dot11]
-        fc    = int(dot11.FCfield)
+        dot11   = pkt[Dot11]
+        fc      = int(dot11.FCfield)
         to_ds   = bool(fc & 0x01)
         from_ds = bool(fc & 0x02)
 
         if to_ds and not from_ds:
-            # Client → AP: addr1=BSSID, addr2=client
             bssid      = dot11.addr1
             client_mac = dot11.addr2
         elif from_ds and not to_ds:
-            # AP → client: addr1=client, addr2=BSSID
             client_mac = dot11.addr1
             bssid      = dot11.addr2
         else:
-            return  # WDS/ad-hoc — skip
+            return
 
         if not client_mac or not bssid:
             return
         if bssid == 'ff:ff:ff:ff:ff:ff' or client_mac == 'ff:ff:ff:ff:ff:ff':
             return
-        # Skip broadcast/multicast client MACs
         if int(client_mac.split(':')[0], 16) & 0x01:
-            return
+            return  # multicast
 
-        # Rate-limit: one DB write per (client, bssid) per 30s
-        key = (client_mac, bssid)
+        key      = (client_mac, bssid)
         now_mono = time.monotonic()
         with _client_lock:
             if now_mono - _last_client_sight.get(key, 0) < 30.0:
@@ -355,17 +359,13 @@ def handle_data(pkt) -> None:
             _last_client_sight[key] = now_mono
 
         signal_dbm = _parse_signal(pkt)
-        channel    = _parse_channel(pkt)
+        channel    = _radiotap_channel(pkt)   # no IE walk
         pos        = gps.get_position()
-        lat        = pos['lat']
-        lon        = pos['lon']
-        fix        = 1 if pos['fix'] else 0
         now        = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
         _insert_client_sighting(now, client_mac, bssid, signal_dbm, channel,
-                                 lat, lon, fix)
-        log.debug('Client sighting: %s → %s sig=%s ch=%s',
-                  client_mac, bssid, signal_dbm, channel)
+                                pos['lat'], pos['lon'], 1 if pos['fix'] else 0)
+        log.debug('Client: %s → %s sig=%s ch=%s', client_mac, bssid, signal_dbm, channel)
     except Exception as exc:
         log.debug('handle_data error: %s', exc)
 

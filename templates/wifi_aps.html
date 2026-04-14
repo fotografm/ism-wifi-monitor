@@ -74,7 +74,11 @@ var COL_IDX={ssid:0,bssid:1,manufacturer:2,channel:3,signal_dbm:5,encryption:6,f
 
 function rssiClass(v){if(v===null||v===undefined)return 'rssi-none';if(v>=-60)return 'rssi-good';if(v>=-75)return 'rssi-ok';return 'rssi-weak';}
 function encClass(e){return e==='OPEN'?'enc-open':'enc-wpa';}
-function fmtTs(ts){return ts?ts.replace('T',' ').slice(0,16):'\u2014';}
+function fmtTs(ts){
+    if(!ts)return'\u2014';
+    try{return new Date(ts).toLocaleString('de-DE',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
+    catch(e){return ts.replace('T',' ').slice(0,16);}
+}
 function apSearch(ap){return [ap.ssid||'',ap.bssid||'',ap.manufacturer||'',ap.channel!=null?String(ap.channel):'',ap.encryption||'',ap.first_seen||'',ap.last_seen||''].join(' ').toLowerCase();}
 function applyFilter(){filterStr=document.getElementById('ap-filter').value.trim().toLowerCase();renderTable();}
 function clearFilter(){document.getElementById('ap-filter').value='';filterStr='';renderTable();}
