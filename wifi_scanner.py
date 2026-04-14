@@ -150,6 +150,9 @@ def _insert_client_sighting(timestamp: str, client_mac: str, bssid: str,
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (timestamp, client_mac, bssid, signal_dbm, channel, lat, lon, fix))
     _get_conn().commit()
+
+
+def _parse_ssid(pkt) -> str:
     elt = pkt.getlayer(Dot11Elt)
     if elt and elt.ID == 0:
         try:
