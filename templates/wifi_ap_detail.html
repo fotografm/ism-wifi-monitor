@@ -5,38 +5,38 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AP Detail &#8212; raspi81</title>
 <link rel="stylesheet" href="/raspi-style.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 body { padding: 0; }
 #topbar { display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border-dim);background:var(--panel);margin-bottom:16px; }
-#topbar h1 { font-size:13px;color:var(--heading);letter-spacing:2px;text-transform:uppercase;white-space:nowrap; }
+#topbar h1 { font-size:12px;color:var(--heading);letter-spacing:2px;text-transform:uppercase; }
 .back-btn { padding:4px 12px;border:1px solid var(--btn-border);background:var(--btn-bg);color:var(--btn-label);border-radius:4px;text-decoration:none;font-size:11px;flex-shrink:0; }
 .back-btn:hover { background:var(--btn-bg-h); }
+#tick { font-size:10px;color:var(--dim);margin-left:auto; }
 .content { padding:0 14px 20px; }
-.two-col { display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px; }
 @media (max-width:700px) { .two-col { grid-template-columns:1fr; } }
-.info-card { background:var(--panel);border:1px solid var(--border-dim);border-radius:4px;overflow:hidden; }
-.card-title { font-size:10px;text-transform:uppercase;letter-spacing:3px;color:var(--muted);padding:8px 12px;background:#0a0a18;border-bottom:1px solid var(--border-dim); }
+.card { background:var(--panel);border:1px solid var(--border-dim);border-radius:4px;overflow:hidden;margin-bottom:12px; }
+.card-title { font-size:10px;text-transform:uppercase;letter-spacing:3px;color:var(--muted);padding:7px 12px;background:#0a0a18;border-bottom:1px solid var(--border-dim); }
 .info-grid { display:grid;grid-template-columns:1fr 1fr;padding:10px 12px;gap:10px; }
-.info-item .lbl { font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:2px; }
-.info-item .val { font-family:monospace;font-size:12px;color:var(--text);word-break:break-all; }
-.enc-open { color:var(--value-alert); }
-.enc-wpa  { color:var(--value-green); }
+.lbl { font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:2px; }
+.val { font-family:monospace;font-size:12px;color:var(--text);word-break:break-all; }
 .rssi-good { color:var(--value-green); }
 .rssi-ok   { color:var(--value-warn); }
 .rssi-weak { color:var(--value-alert); }
+.enc-open  { color:var(--value-alert); }
+.enc-wpa   { color:var(--value-green); }
 .cap-pill { display:inline-block;background:#0d0d28;border:1px solid var(--border-dim);border-radius:3px;padding:1px 7px;font-size:10px;color:var(--muted);margin:2px; }
-#map { height:200px;border-radius:4px;margin:0 12px 12px; }
+#map { height:200px; }
 .leaflet-container { background:#0a0a18; }
-.assoc-table { width:100%;border-collapse:collapse;font-size:12px; }
-.assoc-table th { padding:6px 10px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border-dim);text-align:left;background:#0a0a18; }
-.assoc-table td { padding:5px 10px;border-bottom:1px solid var(--border-dim);color:var(--text); }
-.assoc-table tr:last-child td { border-bottom:none; }
-.badge-assoc { display:inline-block;background:#0d0d28;border:1px solid var(--border-dim);border-radius:3px;padding:1px 6px;font-size:10px;color:var(--muted); }
-#tick { font-size:10px;color:var(--dim);margin-left:auto; }
-.full-width { margin-bottom:14px; }
+.det-table { width:100%;border-collapse:collapse;font-size:11px; }
+.det-table th { padding:6px 10px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border-dim);text-align:left;background:#0a0a18;white-space:nowrap; }
+.det-table td { padding:5px 10px;border-bottom:1px solid var(--border-dim);color:var(--text);white-space:nowrap; }
+.det-table tr:last-child td { border-bottom:none; }
+.det-table tr:hover td { background:rgba(74,74,138,0.1); }
+.badge-sm { display:inline-block;background:#0d0d28;border:1px solid var(--border-dim);border-radius:3px;padding:1px 6px;font-size:10px;color:var(--muted); }
+.no-data { color:var(--dim);font-style:italic;padding:16px;text-align:center; }
 </style>
 </head>
 <body>
@@ -48,230 +48,209 @@ body { padding: 0; }
 <div class="content">
 
   <div class="two-col">
-
-    <div class="info-card">
+    <div class="card">
       <div class="card-title">Identity</div>
       <div class="info-grid">
-        <div class="info-item"><div class="lbl">SSID</div><div class="val" id="ap-ssid">—</div></div>
-        <div class="info-item"><div class="lbl">BSSID</div><div class="val" id="ap-bssid">—</div></div>
-        <div class="info-item"><div class="lbl">Manufacturer</div><div class="val" id="ap-manuf">—</div></div>
-        <div class="info-item"><div class="lbl">OUI</div><div class="val" id="ap-oui">—</div></div>
-        <div class="info-item"><div class="lbl">Encryption</div><div class="val" id="ap-enc">—</div></div>
-        <div class="info-item"><div class="lbl">Hidden SSID</div><div class="val" id="ap-hidden">—</div></div>
+        <div><div class="lbl">SSID</div><div class="val" id="ap-ssid">—</div></div>
+        <div><div class="lbl">BSSID</div><div class="val" id="ap-bssid">—</div></div>
+        <div><div class="lbl">Manufacturer</div><div class="val" id="ap-manuf">—</div></div>
+        <div><div class="lbl">OUI</div><div class="val" id="ap-oui">—</div></div>
+        <div><div class="lbl">Encryption</div><div class="val" id="ap-enc">—</div></div>
+        <div><div class="lbl">Hidden SSID</div><div class="val" id="ap-hidden">—</div></div>
       </div>
     </div>
-
-    <div class="info-card">
+    <div class="card">
       <div class="card-title">Radio</div>
       <div class="info-grid">
-        <div class="info-item"><div class="lbl">Channel</div><div class="val" id="ap-channel">—</div></div>
-        <div class="info-item"><div class="lbl">Frequency</div><div class="val" id="ap-freq">—</div></div>
-        <div class="info-item"><div class="lbl">Band</div><div class="val" id="ap-band">—</div></div>
-        <div class="info-item"><div class="lbl">Generation</div><div class="val" id="ap-gen">—</div></div>
-        <div class="info-item"><div class="lbl">Signal avg</div><div class="val" id="ap-sig-avg">—</div></div>
-        <div class="info-item"><div class="lbl">Signal range</div><div class="val" id="ap-sig-range">—</div></div>
+        <div><div class="lbl">Channel</div><div class="val" id="ap-channel">—</div></div>
+        <div><div class="lbl">Frequency</div><div class="val" id="ap-freq">—</div></div>
+        <div><div class="lbl">Band</div><div class="val" id="ap-band">—</div></div>
+        <div><div class="lbl">Generation</div><div class="val" id="ap-gen">—</div></div>
+        <div><div class="lbl">Signal avg</div><div class="val" id="ap-sig-avg">—</div></div>
+        <div><div class="lbl">Signal min/max</div><div class="val" id="ap-sig-range">—</div></div>
       </div>
     </div>
-
   </div>
 
   <div class="two-col">
-
-    <div class="info-card">
+    <div class="card">
       <div class="card-title">History</div>
       <div class="info-grid">
-        <div class="info-item"><div class="lbl">First seen</div><div class="val" id="ap-first">—</div></div>
-        <div class="info-item"><div class="lbl">Last seen</div><div class="val" id="ap-last">—</div></div>
-        <div class="info-item"><div class="lbl">Total sightings</div><div class="val" id="ap-sightings">—</div></div>
-        <div class="info-item"><div class="lbl">GPS sightings</div><div class="val" id="ap-gps">—</div></div>
+        <div><div class="lbl">First seen</div><div class="val" id="ap-first">—</div></div>
+        <div><div class="lbl">Last seen</div><div class="val" id="ap-last">—</div></div>
+        <div><div class="lbl">Total sightings</div><div class="val" id="ap-sightings">—</div></div>
+        <div><div class="lbl">GPS sightings</div><div class="val" id="ap-gps">—</div></div>
       </div>
     </div>
-
-    <div class="info-card">
+    <div class="card">
       <div class="card-title">802.11 Capability Flags</div>
       <div style="padding:10px 12px" id="ap-caps">—</div>
     </div>
-
   </div>
 
-  <div class="info-card full-width" id="map-card" style="display:none">
-    <div class="card-title">Last Known GPS Position</div>
+  <div class="card" id="map-card" style="display:none">
+    <div class="card-title">GPS Position History</div>
     <div id="map"></div>
     <div style="padding:6px 12px;font-size:11px;color:var(--muted)" id="map-coords"></div>
   </div>
 
-  <div class="info-card full-width">
-    <div class="card-title">Associated Clients <span id="assoc-count" style="color:var(--dim);font-weight:normal"></span></div>
-    <table class="assoc-table">
-      <thead><tr>
-        <th>Time</th>
-        <th>Type</th>
-        <th>Client MAC</th>
-        <th>Manufacturer</th>
-        <th>SSID</th>
-        <th>Ch</th>
-        <th>dBm</th>
-      </tr></thead>
-      <tbody id="assoc-tbody">
-        <tr><td colspan="7" style="color:var(--dim);padding:16px;text-align:center">Loading&#8230;</td></tr>
-      </tbody>
+  <div class="card">
+    <div class="card-title">Connected Clients <span id="clients-count" style="color:var(--dim);text-transform:none;letter-spacing:0;font-weight:normal"></span><span style="color:var(--dim);text-transform:none;letter-spacing:0;font-weight:normal;font-size:9px;margin-left:8px">— devices actively exchanging data with this AP</span></div>
+    <table class="det-table">
+      <thead><tr><th>Last seen</th><th>Client MAC</th><th>Manufacturer</th><th>Signal avg</th><th>Data sightings</th><th>First seen</th></tr></thead>
+      <tbody id="clients-tbody"><tr><td colspan="6" class="no-data">Loading&#8230;</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Association Frames <span id="assoc-count" style="color:var(--dim);text-transform:none;letter-spacing:0;font-weight:normal"></span><span style="color:var(--dim);text-transform:none;letter-spacing:0;font-weight:normal;font-size:9px;margin-left:8px">— captured during join handshake only</span></div>
+    <table class="det-table">
+      <thead><tr><th>Time</th><th>Type</th><th>Client MAC</th><th>Manufacturer</th><th>SSID</th><th>Ch</th><th>dBm</th></tr></thead>
+      <tbody id="assoc-tbody"><tr><td colspan="7" class="no-data">Loading&#8230;</td></tr></tbody>
     </table>
   </div>
 
 </div>
-
 <script>
 'use strict';
-
 var BSSID = {{ bssid | tojson }};
-var apMap = null;
-var apMarker = null;
+var apMap = null, apMarker = null;
 
-function fmtTs(ts) {
+function fmtTs(ts) { return ts ? ts.replace('T',' ').slice(0,19) : '—'; }
+function fmtAgo(ts) {
     if (!ts) return '—';
-    return ts.replace('T',' ').slice(0,19);
-}
-function fmtSubtype(st) {
-    return {0:'Assoc Req', 1:'Assoc Resp', 11:'Auth'}[st] || String(st);
+    var d = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+    if (d < 60) return d + 's ago';
+    if (d < 3600) return Math.floor(d/60) + 'm ago';
+    if (d < 86400) return Math.floor(d/3600) + 'h ago';
+    return Math.floor(d/86400) + 'd ago';
 }
 function rssiClass(v) {
-    if (v === null || v === undefined) return '';
+    if (v == null) return '';
     if (v >= -60) return 'rssi-good';
     if (v >= -75) return 'rssi-ok';
     return 'rssi-weak';
 }
-function encClass(e) {
-    return e === 'OPEN' ? 'enc-open' : 'enc-wpa';
-}
-
-function set(id, html, raw) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    if (raw) el.innerHTML = html;
-    else el.textContent = html || '—';
-}
+function set(id, val) { var e=document.getElementById(id); if(e) e.textContent=val||'—'; }
+function setHtml(id, html) { var e=document.getElementById(id); if(e) e.innerHTML=html; }
 
 function loadAP() {
-    fetch('/api/ap/' + BSSID).then(function(r){ return r.json(); }).then(function(d){
-        var ap = d.ap, st = d.stats, tech = d.technical;
-
-        document.getElementById('page-title').textContent =
-            (ap.ssid || '[Hidden]') + ' — ' + BSSID;
-        document.title = (ap.ssid || BSSID) + ' — raspi81';
-
-        set('ap-ssid', ap.ssid || '<span style="color:var(--dim)">[Hidden]</span>', true);
+    fetch('/api/ap/'+BSSID).then(function(r){return r.json();}).then(function(d){
+        var ap=d.ap, st=d.stats, tech=d.technical;
+        document.getElementById('page-title').textContent=(ap.ssid||'[Hidden]')+' \u2014 '+BSSID;
+        document.title=(ap.ssid||BSSID)+' \u2014 raspi81';
+        setHtml('ap-ssid', ap.ssid ? ap.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                                   : '<span style="color:var(--dim)">[Hidden]</span>');
         set('ap-bssid', BSSID);
-        set('ap-manuf', tech.manuf_long || tech.manuf_short || '—');
-        set('ap-oui', tech.oui || '—');
-
-        var encEl = document.getElementById('ap-enc');
-        encEl.textContent = ap.encryption || '—';
-        encEl.className = 'val ' + encClass(ap.encryption);
-
-        set('ap-hidden', tech.hidden_ssid ? 'Yes (beacon with empty SSID)' : 'No');
-        set('ap-channel', tech.channel != null ? String(tech.channel) : '—');
-        set('ap-freq', tech.frequency_mhz ? tech.frequency_mhz + ' MHz' : '—');
-        set('ap-band', tech.band || '—');
-        set('ap-gen', tech.generation || '—');
-
-        var sigAvgEl = document.getElementById('ap-sig-avg');
-        sigAvgEl.textContent = st.sig_avg != null ? st.sig_avg + ' dBm' : '—';
-        sigAvgEl.className = 'val ' + rssiClass(st.sig_avg);
-        set('ap-sig-range',
-            (st.sig_min != null && st.sig_max != null)
-            ? st.sig_min + ' / ' + st.sig_max + ' dBm'
-            : '—');
-
+        set('ap-manuf', tech.manuf_long||tech.manuf_short||'Unknown');
+        set('ap-oui', tech.oui||'—');
+        var encEl=document.getElementById('ap-enc');
+        encEl.textContent=ap.encryption||'—';
+        encEl.className='val '+(ap.encryption==='OPEN'?'enc-open':'enc-wpa');
+        set('ap-hidden', tech.hidden_ssid?'Yes':'No');
+        set('ap-channel', tech.channel!=null?String(tech.channel):'—');
+        set('ap-freq', tech.frequency_mhz?tech.frequency_mhz+' MHz':'—');
+        set('ap-band', tech.band||'—');
+        set('ap-gen', tech.generation||'—');
+        var sa=document.getElementById('ap-sig-avg');
+        sa.textContent=st.sig_avg!=null?st.sig_avg+' dBm':'—';
+        sa.className='val '+rssiClass(st.sig_avg);
+        set('ap-sig-range', (st.sig_min!=null&&st.sig_max!=null)?st.sig_min+' / '+st.sig_max+' dBm':'—');
         set('ap-first', fmtTs(ap.first_seen));
         set('ap-last', fmtTs(ap.last_seen));
-        set('ap-sightings', st.total_sightings != null ? String(st.total_sightings) : '—');
-        set('ap-gps', st.gps_sightings != null ? String(st.gps_sightings) : '—');
+        set('ap-sightings', st.total_sightings!=null?String(st.total_sightings):'—');
+        set('ap-gps', st.gps_sightings!=null?String(st.gps_sightings):'—');
+        if (tech.cap_flags&&tech.cap_flags.length) {
+            setHtml('ap-caps', tech.cap_flags.map(function(f){
+                return '<span class="cap-pill" title="'+f.raw+'">'+f.label+'</span>';
+            }).join(''));
+        } else { set('ap-caps','No capability flags'); }
 
-        /* capability pills */
-        var capsEl = document.getElementById('ap-caps');
-        if (tech.cap_flags && tech.cap_flags.length) {
-            capsEl.innerHTML = tech.cap_flags.map(function(f){
-                return '<span class="cap-pill" title="' + f.raw + '">' + f.label + '</span>';
-            }).join('');
-        } else {
-            capsEl.textContent = 'No capability flags parsed';
-        }
-
-        /* GPS map — use last sighting with GPS */
-        var gpsSightings = (d.sightings || []).filter(function(s){
-            return s.gps_fix && s.latitude && s.longitude;
-        });
-        if (gpsSightings.length) {
-            var last = gpsSightings[0];
-            var lat = last.latitude, lon = last.longitude;
-            document.getElementById('map-card').style.display = '';
-            document.getElementById('map-coords').textContent =
-                lat.toFixed(6) + ', ' + lon.toFixed(6) +
-                (last.altitude_m ? '  alt: ' + last.altitude_m.toFixed(1) + ' m' : '') +
-                '  —  from sighting at ' + fmtTs(last.timestamp);
-
+        var gps=(d.sightings||[]).filter(function(s){return s.gps_fix&&s.latitude&&s.longitude;});
+        if (gps.length) {
+            document.getElementById('map-card').style.display='';
+            var last=gps[0];
+            document.getElementById('map-coords').textContent=
+                last.latitude.toFixed(6)+', '+last.longitude.toFixed(6)+
+                (last.altitude_m?'  alt: '+last.altitude_m.toFixed(1)+' m':'')+
+                '  \u2014  '+fmtTs(last.timestamp);
             if (!apMap) {
-                apMap = L.map('map', { center:[lat,lon], zoom:17, zoomControl:true });
-                L.tileLayer('/tiles/{z}/{x}/{y}', {
-                    attribution: '&copy; OSM',
-                    maxZoom: 19,
-                }).addTo(apMap);
-                apMarker = L.circleMarker([lat,lon], {
-                    radius:9, color:'#4a4a8a', fillColor:'#88ee88',
-                    fillOpacity:0.85, weight:2,
-                }).addTo(apMap);
-            } else {
-                apMap.setView([lat,lon]);
-                apMarker.setLatLng([lat,lon]);
-            }
-
-            /* plot all GPS sightings as faded dots */
-            gpsSightings.slice(1).forEach(function(s){
-                L.circleMarker([s.latitude,s.longitude],{
-                    radius:4, color:'#4a4a8a', fillColor:'#4a4a8a',
-                    fillOpacity:0.3, weight:1,
-                }).addTo(apMap);
-            });
+                apMap=L.map('map',{center:[last.latitude,last.longitude],zoom:17});
+                L.tileLayer('/tiles/{z}/{x}/{y}',{attribution:'&copy; OSM',maxZoom:19}).addTo(apMap);
+                apMarker=L.circleMarker([last.latitude,last.longitude],
+                    {radius:9,color:'#4a4a8a',fillColor:'#88ee88',fillOpacity:0.85,weight:2})
+                    .bindTooltip('Latest sighting').addTo(apMap);
+                gps.slice(1).forEach(function(s){
+                    L.circleMarker([s.latitude,s.longitude],
+                        {radius:3,color:'#4a4a8a',fillColor:'#6666aa',fillOpacity:0.4,weight:1})
+                        .addTo(apMap);
+                });
+            } else { apMarker.setLatLng([last.latitude,last.longitude]); }
         }
+    }).catch(function(e){console.error(e);});
+}
 
-    }).catch(function(){});
+function loadClients() {
+    fetch('/api/ap/'+BSSID+'/clients').then(function(r){return r.json();}).then(function(rows){
+        var tbody=document.getElementById('clients-tbody');
+        document.getElementById('clients-count').textContent=' ('+rows.length+')';
+        tbody.innerHTML='';
+        if (!rows.length) {
+            tbody.innerHTML='<tr><td colspan="6" class="no-data">No client data frames captured yet for this AP.<br>'+
+                '<span style="font-size:10px">Clients must be actively sending data traffic to appear here.</span></td></tr>';
+            return;
+        }
+        rows.forEach(function(c){
+            var tr=document.createElement('tr');
+            var isRecent=c.last_seen&&(Date.now()-new Date(c.last_seen).getTime())<300000;
+            tr.innerHTML=
+                '<td style="'+(isRecent?'color:var(--value-green)':'color:var(--dim)')+'">'+fmtAgo(c.last_seen)+'</td>'+
+                '<td style="font-family:monospace;font-size:11px">'+(c.client_mac||'—')+'</td>'+
+                '<td style="color:var(--muted)">'+(c.manufacturer||'Unknown')+'</td>'+
+                '<td class="'+rssiClass(c.avg_signal)+'">'+(c.avg_signal!=null?c.avg_signal+' dBm':'—')+'</td>'+
+                '<td style="color:var(--muted)">'+(c.sight_count||0)+'</td>'+
+                '<td style="color:var(--dim);font-size:11px">'+fmtTs(c.first_seen)+'</td>';
+            tbody.appendChild(tr);
+        });
+    }).catch(function(){
+        document.getElementById('clients-tbody').innerHTML=
+            '<tr><td colspan="6" class="no-data">Client data not available yet \u2014 scanner needs to observe data frames.</td></tr>';
+    });
 }
 
 function loadAssoc() {
-    fetch('/api/ap/' + BSSID + '/associations').then(function(r){ return r.json(); }).then(function(rows){
-        var tbody = document.getElementById('assoc-tbody');
-        document.getElementById('assoc-count').textContent = '(' + rows.length + ')';
-        tbody.innerHTML = '';
+    fetch('/api/ap/'+BSSID+'/associations').then(function(r){return r.json();}).then(function(rows){
+        var tbody=document.getElementById('assoc-tbody');
+        document.getElementById('assoc-count').textContent=' ('+rows.length+')';
+        tbody.innerHTML='';
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="7" style="color:var(--dim);padding:16px;text-align:center">No association frames captured for this AP</td></tr>';
+            tbody.innerHTML='<tr><td colspan="7" class="no-data">No association frames captured for this AP yet.<br>'+
+                '<span style="font-size:10px">These only occur when a device is actively joining the network.</span></td></tr>';
             return;
         }
-        rows.forEach(function(a) {
-            var tr = document.createElement('tr');
-            var ssid = a.ssid ? '<span style="background:#0d0d28;border:1px solid var(--border-dim);border-radius:3px;padding:1px 6px;font-size:11px">' +
-                a.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' : '—';
-            tr.innerHTML =
-                '<td style="font-size:10px;color:var(--dim);white-space:nowrap">' + fmtTs(a.ts) + '</td>' +
-                '<td><span class="badge-assoc">' + fmtSubtype(a.frame_subtype) + '</span></td>' +
-                '<td style="font-family:monospace;font-size:11px">' + (a.src_mac||'—') + '</td>' +
-                '<td style="font-size:11px;color:var(--muted)">' + (a.manufacturer||'—') + '</td>' +
-                '<td>' + ssid + '</td>' +
-                '<td>' + (a.channel||'—') + '</td>' +
-                '<td class="' + rssiClass(a.rssi) + '">' + (a.rssi||'—') + '</td>';
+        rows.forEach(function(a){
+            var tr=document.createElement('tr');
+            var ssid=a.ssid?'<span class="badge-sm">'+a.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</span>':'—';
+            tr.innerHTML=
+                '<td style="font-size:10px;color:var(--dim)">'+fmtTs(a.timestamp)+'</td>'+
+                '<td><span class="badge-sm">'+(a.frame_label||'—')+'</span></td>'+
+                '<td style="font-family:monospace;font-size:11px">'+(a.client_mac||'—')+'</td>'+
+                '<td style="color:var(--muted)">'+(a.manufacturer||'—')+'</td>'+
+                '<td>'+ssid+'</td>'+
+                '<td>'+(a.channel||'—')+'</td>'+
+                '<td class="'+rssiClass(a.signal_dbm)+'">'+(a.signal_dbm||'—')+'</td>';
             tbody.appendChild(tr);
         });
     }).catch(function(){});
 }
 
-function load() { loadAP(); loadAssoc(); }
-
-var cd = 10;
+function load(){ loadAP(); loadClients(); loadAssoc(); }
+var cd=10;
 setInterval(function(){
     cd--;
-    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
-    if (cd <= 0) { cd = 10; load(); }
-}, 1000);
-
+    document.getElementById('tick').textContent='refresh in '+cd+'s';
+    if(cd<=0){cd=10;load();}
+},1000);
 load();
 </script>
 </body>

@@ -38,6 +38,29 @@ def init_db() -> None:
             timestamp      TEXT    NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS associations (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp      TEXT    NOT NULL,
+            frame_subtype  INTEGER NOT NULL,
+            client_mac     TEXT    NOT NULL,
+            bssid          TEXT    NOT NULL,
+            ssid           TEXT,
+            signal_dbm     INTEGER,
+            channel        INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS client_sightings (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp      TEXT    NOT NULL,
+            client_mac     TEXT    NOT NULL,
+            bssid          TEXT    NOT NULL,
+            signal_dbm     INTEGER,
+            channel        INTEGER,
+            latitude       REAL,
+            longitude      REAL,
+            gps_fix        INTEGER NOT NULL DEFAULT 0
+        );
+
         CREATE INDEX IF NOT EXISTS idx_sightings_bssid
             ON sightings(bssid);
         CREATE INDEX IF NOT EXISTS idx_sightings_timestamp
@@ -45,6 +68,18 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_sightings_latlon
             ON sightings(latitude, longitude)
             WHERE latitude IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_assoc_bssid
+            ON associations(bssid);
+        CREATE INDEX IF NOT EXISTS idx_assoc_client
+            ON associations(client_mac);
+        CREATE INDEX IF NOT EXISTS idx_assoc_ts
+            ON associations(timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_client_bssid
+            ON client_sightings(bssid);
+        CREATE INDEX IF NOT EXISTS idx_client_mac
+            ON client_sightings(client_mac);
+        CREATE INDEX IF NOT EXISTS idx_client_ts
+            ON client_sightings(timestamp DESC);
     ''')
 
     conn.commit()

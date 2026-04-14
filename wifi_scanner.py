@@ -44,6 +44,14 @@ gps = GPSReader(host=GPS_HOST, port=GPS_PORT)
 _last_sighting: dict = {}
 _throttle_lock = threading.Lock()
 
+# Rate-limit client sightings from data frames: write at most once per 30s per (client, bssid)
+_last_client_sight: dict = {}
+_client_lock = threading.Lock()
+
+# Rate-limit association writes: dedupe within 5s per (client, bssid, subtype)
+_last_assoc: dict = {}
+_assoc_lock = threading.Lock()
+
 
 def _should_sight(bssid: str, lat: Optional[float], lon: Optional[float]) -> bool:
     now = time.monotonic()
@@ -119,7 +127,28 @@ def _insert_sighting(bssid: str, signal_dbm: Optional[int],
     _get_conn().commit()
 
 
-def _parse_ssid(pkt) -> str:
+def _insert_association(timestamp: str, frame_subtype: int, client_mac: str,
+                         bssid: str, ssid: Optional[str],
+                         signal_dbm: Optional[int], channel: Optional[int]) -> None:
+    _get_conn().execute('''
+        INSERT INTO associations
+            (timestamp, frame_subtype, client_mac, bssid, ssid, signal_dbm, channel)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (timestamp, frame_subtype, client_mac, bssid, ssid, signal_dbm, channel))
+    _get_conn().commit()
+
+
+def _insert_client_sighting(timestamp: str, client_mac: str, bssid: str,
+                              signal_dbm: Optional[int], channel: Optional[int],
+                              lat: Optional[float], lon: Optional[float],
+                              fix: int) -> None:
+    _get_conn().execute('''
+        INSERT INTO client_sightings
+            (timestamp, client_mac, bssid, signal_dbm, channel,
+             latitude, longitude, gps_fix)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (timestamp, client_mac, bssid, signal_dbm, channel, lat, lon, fix))
+    _get_conn().commit()
     elt = pkt.getlayer(Dot11Elt)
     if elt and elt.ID == 0:
         try:
@@ -243,40 +272,143 @@ def _cap_str(pkt) -> str:
         return ''
 
 
-def handle_frame(pkt) -> None:
-    if not (pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp)):
-        return
-
-    bssid = pkt[Dot11].addr3
-    if not bssid or bssid == 'ff:ff:ff:ff:ff:ff':
-        return
-
-    ssid       = _parse_ssid(pkt)
-    signal_dbm = _parse_signal(pkt)
-    channel    = _parse_channel(pkt)
-    freq       = _channel_to_freq(channel) if channel else None
-    encryption = _parse_encryption(pkt)
-    caps       = _cap_str(pkt)
-
-    pos = gps.get_position()
-    lat = pos['lat']
-    lon = pos['lon']
-    alt = pos['alt']
-    fix = 1 if pos['fix'] else 0
-
-    now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-
+def handle_association(pkt, subtype: int) -> None:
+    """Capture management frames: assoc req(0), assoc resp(1), reassoc req(2),
+    reassoc resp(3), auth(11). Records client MAC associating with BSSID."""
     try:
-        _upsert_ap(bssid, ssid, encryption, caps, now)
-        if _should_sight(bssid, lat, lon):
-            _insert_sighting(bssid, signal_dbm, channel, freq,
-                             lat, lon, alt, fix, now)
-            log.debug('Sighting %s (%s) ch=%s sig=%s gps=%s',
-                      bssid, ssid or '(hidden)', channel, signal_dbm, fix)
-        else:
-            _update_ap_rssi(bssid, signal_dbm, channel, now)
+        dot11 = pkt[Dot11]
+        # For assoc req/reassoc req: addr2=client, addr1=AP (BSSID)
+        # For assoc resp: addr1=client, addr2=AP
+        # For auth: addr2=initiator, addr3=BSSID
+        if subtype in (0, 2, 11):   # client→AP direction
+            client_mac = dot11.addr2
+            bssid      = dot11.addr1 if subtype == 11 else dot11.addr3
+        else:                        # AP→client (resp)
+            client_mac = dot11.addr1
+            bssid      = dot11.addr2
+
+        if not client_mac or not bssid:
+            return
+        if bssid == 'ff:ff:ff:ff:ff:ff':
+            return
+
+        signal_dbm = _parse_signal(pkt)
+        channel    = _parse_channel(pkt)
+
+        ssid = None
+        if subtype in (0, 2):   # assoc/reassoc req contain SSID
+            ssid = _parse_ssid(pkt) or None
+
+        now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        # Deduplicate: skip if same (client, bssid, subtype) seen within 5s
+        key = (client_mac, bssid, subtype)
+        with _assoc_lock:
+            last = _last_assoc.get(key, 0)
+            now_mono = time.monotonic()
+            if now_mono - last < 5.0:
+                return
+            _last_assoc[key] = now_mono
+
+        _insert_association(now, subtype, client_mac, bssid, ssid, signal_dbm, channel)
+        log.debug('Assoc subtype=%d client=%s bssid=%s ssid=%s',
+                  subtype, client_mac, bssid, ssid)
     except Exception as exc:
-        log.error('DB write error for %s: %s', bssid, exc)
+        log.debug('handle_association error: %s', exc)
+
+
+def handle_data(pkt) -> None:
+    """Extract client↔AP relationships from data frames.
+    DS bits tell direction: ToDS=1/FromDS=0 → client→AP, ToDS=0/FromDS=1 → AP→client.
+    Infrastructure data frames always have exactly one client MAC and one BSSID."""
+    try:
+        dot11 = pkt[Dot11]
+        fc    = int(dot11.FCfield)
+        to_ds   = bool(fc & 0x01)
+        from_ds = bool(fc & 0x02)
+
+        if to_ds and not from_ds:
+            # Client → AP: addr1=BSSID, addr2=client
+            bssid      = dot11.addr1
+            client_mac = dot11.addr2
+        elif from_ds and not to_ds:
+            # AP → client: addr1=client, addr2=BSSID
+            client_mac = dot11.addr1
+            bssid      = dot11.addr2
+        else:
+            return  # WDS/ad-hoc — skip
+
+        if not client_mac or not bssid:
+            return
+        if bssid == 'ff:ff:ff:ff:ff:ff' or client_mac == 'ff:ff:ff:ff:ff:ff':
+            return
+        # Skip broadcast/multicast client MACs
+        if int(client_mac.split(':')[0], 16) & 0x01:
+            return
+
+        # Rate-limit: one DB write per (client, bssid) per 30s
+        key = (client_mac, bssid)
+        now_mono = time.monotonic()
+        with _client_lock:
+            if now_mono - _last_client_sight.get(key, 0) < 30.0:
+                return
+            _last_client_sight[key] = now_mono
+
+        signal_dbm = _parse_signal(pkt)
+        channel    = _parse_channel(pkt)
+        pos        = gps.get_position()
+        lat        = pos['lat']
+        lon        = pos['lon']
+        fix        = 1 if pos['fix'] else 0
+        now        = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        _insert_client_sighting(now, client_mac, bssid, signal_dbm, channel,
+                                 lat, lon, fix)
+        log.debug('Client sighting: %s → %s sig=%s ch=%s',
+                  client_mac, bssid, signal_dbm, channel)
+    except Exception as exc:
+        log.debug('handle_data error: %s', exc)
+
+
+def handle_frame(pkt) -> None:
+    if not pkt.haslayer(Dot11):
+        return
+
+    ftype   = pkt[Dot11].type
+    subtype = pkt[Dot11].subtype
+
+    if ftype == 0:  # management
+        if subtype in (8, 5):  # beacon, probe resp
+            if not (pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp)):
+                return
+            bssid = pkt[Dot11].addr3
+            if not bssid or bssid == 'ff:ff:ff:ff:ff:ff':
+                return
+            ssid       = _parse_ssid(pkt)
+            signal_dbm = _parse_signal(pkt)
+            channel    = _parse_channel(pkt)
+            freq       = _channel_to_freq(channel) if channel else None
+            encryption = _parse_encryption(pkt)
+            caps       = _cap_str(pkt)
+            pos = gps.get_position()
+            lat = pos['lat']; lon = pos['lon']; alt = pos['alt']
+            fix = 1 if pos['fix'] else 0
+            now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            try:
+                _upsert_ap(bssid, ssid, encryption, caps, now)
+                if _should_sight(bssid, lat, lon):
+                    _insert_sighting(bssid, signal_dbm, channel, freq,
+                                     lat, lon, alt, fix, now)
+                else:
+                    _update_ap_rssi(bssid, signal_dbm, channel, now)
+            except Exception as exc:
+                log.error('DB write error for %s: %s', bssid, exc)
+
+        elif subtype in (0, 1, 2, 3, 11):  # assoc req/resp, reassoc req/resp, auth
+            handle_association(pkt, subtype)
+
+    elif ftype == 2:  # data
+        handle_data(pkt)
 
 
 def channel_hopper() -> None:

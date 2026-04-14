@@ -681,16 +681,45 @@ def ap_detail_page(bssid: str):
 def api_ap_associations(bssid: str):
     dbconn = get_db()
     rows = dbconn.execute('''
-        SELECT ts, frame_subtype, src_mac, ssid, rssi, channel
+        SELECT timestamp, frame_subtype, client_mac, ssid, signal_dbm, channel
         FROM associations
         WHERE bssid = ?
-        ORDER BY ts DESC
+        ORDER BY timestamp DESC
         LIMIT 200
     ''', (bssid,)).fetchall()
     result = []
     for r in rows:
         d = dict(r)
-        d['manufacturer'] = _oui_lookup(r['src_mac'])[1]
+        d['manufacturer'] = _oui_lookup(r['client_mac'])[1]
+        d['frame_label']  = {0:'Assoc Req', 1:'Assoc Resp',
+                              2:'Reassoc Req', 3:'Reassoc Resp',
+                              11:'Auth'}.get(r['frame_subtype'], str(r['frame_subtype']))
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/api/ap/<bssid>/clients')
+def api_ap_clients(bssid: str):
+    """Most recent data-frame sighting per client MAC — shows currently/recently connected clients."""
+    dbconn = get_db()
+    rows = dbconn.execute('''
+        SELECT client_mac,
+               MAX(timestamp)  AS last_seen,
+               MIN(timestamp)  AS first_seen,
+               COUNT(*)        AS sight_count,
+               AVG(signal_dbm) AS avg_signal,
+               MAX(signal_dbm) AS best_signal
+        FROM client_sightings
+        WHERE bssid = ?
+        GROUP BY client_mac
+        ORDER BY last_seen DESC
+        LIMIT 200
+    ''', (bssid,)).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d['manufacturer'] = _oui_lookup(r['client_mac'])[1]
+        d['avg_signal']   = round(d['avg_signal']) if d['avg_signal'] is not None else None
         result.append(d)
     return jsonify(result)
 
