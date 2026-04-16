@@ -105,12 +105,12 @@ html, body { height: 100%; margin: 0; padding: 0; background: #080818; }
 <div id="topbar">
     <a href="#" onclick="window.location.href='http://'+location.hostname;return false;" class="tb-home">&#8592; Home</a>
     <span class="tb-title">WiFi Map</span>
+    <button id="btn-track"  class="tb-btn" onclick="toggleTrack()">Track GPS</button>
+    <button id="btn-centre" class="tb-btn" onclick="centreOnGps()">Centre</button>
     <a href="/" class="tb-link">Dashboard</a>
     <a href="/aps" class="tb-link">AP List</a>
     <span class="tb-sep"></span>
     <span id="ap-count">—</span>
-    <button id="btn-track"  class="tb-btn" onclick="toggleTrack()">Track GPS</button>
-    <button id="btn-centre" class="tb-btn" onclick="centreOnGps()">Centre</button>
 </div>
 
 <div id="map"></div>
