@@ -4,7 +4,7 @@
 # Preserves existing wlan0 hotspot (NetworkManager).
 # Marks wlan1 (MT7612U) as unmanaged so NM does not interfere with monitor mode.
 
-set -euo pipefail
+set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEPLOY_DIR="/home/user/ism-wifi-monitor"

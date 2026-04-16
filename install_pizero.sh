@@ -21,7 +21,7 @@
 # To stop RTL-SDR services if no dongle is connected, use the Services page
 # at http://<hostname>:8098 after install.
 
-set -euo pipefail
+set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEPLOY_DIR="/home/user/ism-wifi-monitor"
@@ -115,14 +115,18 @@ fi
 
 # ── 5. Python venv ────────────────────────────────────────────────────────────
 echo "[5/9] Creating Python venv and installing packages"
-sudo -u user python3 -m venv "$VENV"
+if [ ! -f "$VENV/bin/python" ]; then
+    sudo -u user python3 -m venv "$VENV"
+else
+    echo "     Venv already exists — skipping creation"
+fi
 sudo -u user "$VENV/bin/pip" install --upgrade pip wheel --quiet
 sudo -u user "$VENV/bin/pip" install \
     aiohttp aiofiles \
     flask requests \
     scapy \
     manuf \
-    --quiet
+    || { echo "ERROR: pip install failed"; exit 1; }
 echo "     Venv ready: $VENV"
 
 # ── 6. Download OUI database ──────────────────────────────────────────────────
