@@ -14,6 +14,7 @@ html, body { height: 100%; margin: 0; padding: 0; background: #080818; }
     position: fixed; top: 0; left: 0; right: 0; height: 42px; z-index: 1000;
     background: #0d0d20; border-bottom: 1px solid #4a4a8a;
     display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    overflow: hidden;
 }
 .tb-home {
     padding: 3px 10px; border: 1px solid #4a4a9a;
@@ -25,24 +26,25 @@ html, body { height: 100%; margin: 0; padding: 0; background: #080818; }
     font-size: 13px; color: #e8e8ff; letter-spacing: 3px;
     text-transform: uppercase; font-weight: 700; margin-right: 8px;
     padding-right: 10px; border-right: 1px solid #2a2a50;
+    flex-shrink: 0;
 }
 .tb-link {
     padding: 3px 10px; font-size: 11px; color: #aaaadd;
     text-decoration: none; border-radius: 3px; letter-spacing: 1px;
-    text-transform: uppercase;
+    text-transform: uppercase; flex-shrink: 0;
 }
 .tb-link:hover { color: #f0f0ff; }
-.tb-sep { flex: 1; }
+.tb-sep { flex: 1; min-width: 4px; }
 .tb-btn {
     padding: 3px 10px; border: 1px solid #4a4a9a;
     background: #0f0f28; color: #aaaadd;
     border-radius: 3px; font-size: 11px; cursor: pointer;
-    font-family: inherit; letter-spacing: 1px;
+    font-family: inherit; letter-spacing: 1px; flex-shrink: 0;
 }
 .tb-btn:hover { background: #1a1a40; color: #f0f0ff; }
 .tb-btn.active { background: #1a2a1a; border-color: #4a8a4a; color: #88ee88; }
 #ap-count {
-    font-size: 10px; color: #7878aa; letter-spacing: 1px;
+    font-size: 10px; color: #7878aa; letter-spacing: 1px; flex-shrink: 1;
 }
 
 #map {
