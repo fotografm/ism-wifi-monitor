@@ -144,7 +144,14 @@ sudo -u user "$VENV/bin/python" "$DEPLOY_DIR/db_ism.py"
 # ── 8. Network configuration ──────────────────────────────────────────────────
 echo "[8/9] Configuring network"
 
+# Unblock all radios
 rfkill unblock all 2>/dev/null || true
+
+# Ensure wlan0 is up before NM tries to use it
+ip link set wlan0 up 2>/dev/null || true
+
+# Enable WiFi in NetworkManager (may be disabled on fresh install)
+nmcli radio wifi on 2>/dev/null || true
 
 # Mark the scan interface as unmanaged by NetworkManager
 NM_CONF_DIR="/etc/NetworkManager/conf.d"
@@ -155,19 +162,43 @@ unmanaged-devices=interface-name:${SCAN_IFACE}
 NMEOF
 echo "     $SCAN_IFACE marked unmanaged by NetworkManager"
 
-# Update hotspot SSID to match hostname
-echo "     Updating hotspot SSID to: $HOSTNAME_NOW"
+# Restart NM so it picks up the unmanaged conf and recognises wlan0
+systemctl restart NetworkManager
+sleep 3
+
+# Update existing hotspot or create a new one
+echo "     Configuring hotspot SSID: $HOSTNAME_NOW  password: reticulum"
 HOT_UUID=$(nmcli -t -f UUID,TYPE con show 2>/dev/null | grep ':wifi$' | head -1 | cut -d: -f1 || true)
 if [ -n "$HOT_UUID" ]; then
-    nmcli con modify "$HOT_UUID" 802-11-wireless.ssid "$HOSTNAME_NOW" 2>/dev/null \
-        && echo "     Hotspot SSID updated — will apply after NM reload" \
-        || echo "     WARNING: Could not update hotspot SSID automatically"
+    nmcli con modify "$HOT_UUID" \
+        802-11-wireless.ssid "$HOSTNAME_NOW" \
+        wifi-sec.psk 'reticulum' \
+        connection.interface-name wlan0 2>/dev/null || true
+    echo "     Updated existing hotspot connection"
 else
-    echo "     WARNING: No WiFi connection found in NetworkManager"
-    echo "              Set hotspot SSID manually: nmcli con modify <name> 802-11-wireless.ssid $HOSTNAME_NOW"
+    # No hotspot exists — create one
+    nmcli con add \
+        type wifi ifname wlan0 \
+        con-name "${HOSTNAME_NOW}-hotspot" \
+        autoconnect yes \
+        ssid "$HOSTNAME_NOW" \
+        -- \
+        wifi-sec.key-mgmt wpa-psk \
+        wifi-sec.psk 'reticulum' \
+        802-11-wireless.mode ap \
+        802-11-wireless.band bg \
+        ipv4.method shared 2>/dev/null \
+        && echo "     Created new hotspot: $HOSTNAME_NOW" \
+        || echo "     WARNING: Could not create hotspot — configure manually after reboot"
+    HOT_UUID=$(nmcli -t -f UUID,TYPE con show 2>/dev/null | grep ':wifi$' | head -1 | cut -d: -f1 || true)
 fi
 
-systemctl reload NetworkManager 2>/dev/null || true
+# Bring the hotspot up
+if [ -n "$HOT_UUID" ]; then
+    nmcli con up "$HOT_UUID" 2>/dev/null \
+        && echo "     Hotspot activated" \
+        || echo "     Hotspot will activate on reboot"
+fi
 
 # ── 9. Install and enable systemd services ────────────────────────────────────
 echo "[9/9] Installing systemd services"
