@@ -153,6 +153,17 @@ ip link set wlan0 up 2>/dev/null || true
 # Enable WiFi in NetworkManager (may be disabled on fresh install)
 nmcli radio wifi on 2>/dev/null || true
 
+# Configure gpsd to use the GPS dongle on ttyACM0
+cat > /etc/default/gpsd << GPSDEOF
+START_DAEMON="true"
+USBAUTO="true"
+DEVICES="/dev/ttyACM0"
+GPSD_OPTIONS="-n"
+GPSDEOF
+echo "     gpsd configured for /dev/ttyACM0"
+systemctl enable gpsd gpsd.socket
+systemctl restart gpsd
+
 # Mark the scan interface as unmanaged by NetworkManager
 NM_CONF_DIR="/etc/NetworkManager/conf.d"
 mkdir -p "$NM_CONF_DIR"
