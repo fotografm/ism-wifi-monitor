@@ -17,7 +17,11 @@ import logging
 import os
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
+
+# Add ism-wifi-monitor dir to path so we can import the DB init modules
+sys.path.insert(0, '/home/user/ism-wifi-monitor')
 
 from aiohttp import web
 
@@ -130,16 +134,54 @@ def _fmt_size(n: int) -> str:
     return f'{n/1024**3:.2f} GB'
 
 
+def _reinit_db(key: str):
+    """Recreate empty tables for the given DB key."""
+    try:
+        if key == 'wifi':
+            from db_wifi import init_db
+            init_db()
+        elif key == 'history':
+            from db_history import init_db
+            init_db()
+        elif key == 'ism':
+            from db_ism import init_db
+            init_db()
+        elif key == 'gps':
+            # GPS DB init is inline in gps_web.py — replicate it here
+            db = DATABASES['gps']
+            path = db['path']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(str(path))
+            conn.execute('PRAGMA journal_mode=WAL')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS sat_history (
+                    id  INTEGER PRIMARY KEY AUTOINCREMENT,
+                    prn TEXT    NOT NULL,
+                    ts  REAL    NOT NULL,
+                    az  REAL    NOT NULL,
+                    el  REAL    NOT NULL,
+                    ss  REAL    NOT NULL
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_sh_ts  ON sat_history(ts)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_sh_prn ON sat_history(prn, ts)')
+            conn.commit()
+            conn.close()
+    except Exception as e:
+        log.warning('reinit_db %s error: %s', key, e)
+
+
 def _clear_db(key: str) -> dict:
     db   = DATABASES[key]
     path = db['path']
     try:
         path.unlink(missing_ok=True)
-        # Remove WAL/SHM if present
         for ext in ('.db-wal', '.db-shm'):
             (path.parent / (path.name + ext)).unlink(missing_ok=True)
         log.info('Cleared DB: %s', path)
-        return {'ok': True, 'message': f'{db["label"]} cleared.'}
+        _reinit_db(key)
+        log.info('Reinitialised empty tables for %s', key)
+        return {'ok': True, 'message': f'{db["label"]} cleared and ready.'}
     except Exception as e:
         log.error('Clear DB error: %s', e)
         return {'ok': False, 'message': str(e)}
