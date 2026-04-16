@@ -1,10 +1,12 @@
 [Unit]
 Description=Unblock all radio devices
-Before=network-pre.target
+After=systemd-udevd.service
+Wants=systemd-udevd.service
 DefaultDependencies=no
 
 [Service]
 Type=oneshot
+ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5; do [ -e /dev/rfkill ] && exit 0; sleep 1; done; exit 0'
 ExecStart=/usr/sbin/rfkill unblock all
 RemainAfterExit=yes
 
