@@ -1,0 +1,15 @@
+[Unit]
+Description=raspi81 Services Control Server (port 8098)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Environment=HOME=/home/user
+WorkingDirectory=/home/user/ism-wifi-monitor
+ExecStart=/home/user/ism-wifi-monitor/venv/bin/python /home/user/ism-wifi-monitor/services_server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

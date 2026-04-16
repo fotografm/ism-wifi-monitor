@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>raspi81 &mdash; Services</title>
+<link rel="stylesheet" href="http://placeholder/raspi-style.css">
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+body { background:var(--bg);color:var(--text);font-family:monospace;font-size:13px;min-height:100vh; }
+#topbar { display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border-dim);background:var(--panel);margin-bottom:16px; }
+#topbar h1 { font-size:13px;color:var(--heading);letter-spacing:3px;text-transform:uppercase; }
+.back-btn { padding:4px 12px;border:1px solid var(--btn-border);background:var(--btn-bg);color:var(--btn-label);border-radius:4px;text-decoration:none;font-size:11px; }
+.back-btn:hover { background:var(--btn-bg-h); }
+#tick { font-size:10px;color:var(--dim);margin-left:auto; }
+.section { max-width:820px;margin:0 auto 24px;padding:0 14px; }
+.section-title { font-size:10px;text-transform:uppercase;letter-spacing:3px;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border-dim); }
+
+/* ── Service rows ─────────────────────────────────────────── */
+.svc-row {
+    display:flex;align-items:center;gap:10px;
+    padding:8px 12px;margin-bottom:6px;
+    background:var(--panel);border:1px solid var(--border-dim);border-radius:4px;
+}
+.svc-label { flex:1;font-size:12px;color:var(--text); }
+.svc-port { font-size:10px;color:var(--dim);min-width:70px; }
+.btn-start {
+    padding:4px 14px;border-radius:3px;font-family:monospace;font-size:11px;
+    letter-spacing:1px;cursor:pointer;border:1px solid #2a6a2a;
+    background:#0a1a0a;color:#66ee66;transition:background 0.15s,border-color 0.15s;
+    flex-shrink:0;
+}
+.btn-start:hover { background:#0f2a0f;border-color:#44cc44;color:#88ff88; }
+.btn-start:disabled { opacity:0.3;cursor:default; }
+.btn-stop {
+    padding:4px 14px;border-radius:3px;font-family:monospace;font-size:11px;
+    letter-spacing:1px;cursor:pointer;border:1px solid #6a2a2a;
+    background:#1a0a0a;color:#ee6666;transition:background 0.15s,border-color 0.15s;
+    flex-shrink:0;
+}
+.btn-stop:hover { background:#2a0f0f;border-color:#cc4444;color:#ff8888; }
+.btn-stop:disabled { opacity:0.3;cursor:default; }
+
+/* ── Status indicator ─────────────────────────────────────── */
+.svc-status {
+    display:flex;align-items:center;gap:6px;min-width:110px;flex-shrink:0;
+}
+.dot {
+    width:10px;height:10px;border-radius:50%;flex-shrink:0;
+    box-shadow:0 0 6px currentColor;
+}
+.dot-active   { background:#44ee44;color:#44ee44; }
+.dot-inactive { background:#444466;color:#444466;box-shadow:none; }
+.dot-failed   { background:#ee4444;color:#ee4444; }
+.dot-unknown  { background:#888800;color:#888800; }
+.status-text { font-size:10px;letter-spacing:1px;text-transform:uppercase; }
+.status-active   { color:#44ee44; }
+.status-inactive { color:#666688; }
+.status-failed   { color:#ee4444; }
+.status-unknown  { color:#888800; }
+
+/* ── DB rows ──────────────────────────────────────────────── */
+.db-row {
+    display:flex;align-items:center;gap:12px;
+    padding:10px 12px;margin-bottom:8px;
+    background:var(--panel);border:1px solid var(--border-dim);border-radius:4px;
+    flex-wrap:wrap;
+}
+.db-label { font-size:12px;color:var(--text);min-width:120px;flex-shrink:0; }
+.db-stats { flex:1;font-size:11px;color:var(--muted);min-width:160px; }
+.db-stats span { color:var(--value-green); }
+.btn-clear {
+    padding:5px 16px;border-radius:3px;font-family:monospace;font-size:11px;
+    letter-spacing:1px;cursor:pointer;border:1px solid #882222;
+    background:#1a0808;color:#ff5555;flex-shrink:0;
+    transition:background 0.15s,border-color 0.15s;
+}
+.btn-clear:hover { background:#2a0f0f;border-color:#ff3333;color:#ff8888; }
+.btn-clear:disabled { opacity:0.3;cursor:default; }
+.db-confirm {
+    display:none;align-items:center;gap:8px;font-size:11px;color:#ff5555;
+}
+.db-confirm.visible { display:flex; }
+.btn-confirm-yes { padding:3px 10px;border-radius:3px;border:1px solid #ff3333;background:#2a0808;color:#ff8888;font-family:monospace;font-size:11px;cursor:pointer; }
+.btn-confirm-yes:hover { background:#3a0f0f; }
+.btn-confirm-no  { padding:3px 10px;border-radius:3px;border:1px solid #444466;background:#0d0d20;color:#aaaadd;font-family:monospace;font-size:11px;cursor:pointer; }
+.btn-confirm-no:hover  { background:#1a1a30; }
+.db-msg { font-size:10px;min-width:80px; }
+</style>
+</head>
+<body>
+<div id="topbar">
+    <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">&#8592; Home</a>
+    <h1>&#9881; Services</h1>
+    <span id="tick"></span>
+</div>
+
+<div class="section">
+    <div class="section-title">System Services</div>
+    <div id="svc-list">
+        <div style="color:var(--dim);font-size:11px;padding:12px">Loading&hellip;</div>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-title">Database Management</div>
+    <div id="db-list">
+        <div style="color:var(--dim);font-size:11px;padding:12px">Loading&hellip;</div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+var BASE = 'http://' + location.hostname + ':8098';
+
+/* Fix raspi-style.css */
+(function(){var ls=document.querySelectorAll('link[rel="stylesheet"]');ls.forEach(function(l){if(l.href.indexOf('raspi-style')!==-1)l.href='http://'+location.hostname+':8091/raspi-style.css';});})();
+
+/* ── Services ───────────────────────────────────────────────── */
+function dotClass(status) {
+    if (status === 'active')   return 'dot dot-active';
+    if (status === 'failed')   return 'dot dot-failed';
+    if (status === 'inactive') return 'dot dot-inactive';
+    return 'dot dot-unknown';
+}
+function textClass(status) {
+    if (status === 'active')   return 'status-text status-active';
+    if (status === 'failed')   return 'status-text status-failed';
+    if (status === 'inactive') return 'status-text status-inactive';
+    return 'status-text status-unknown';
+}
+
+function renderServices(svcs) {
+    var list = document.getElementById('svc-list');
+    list.innerHTML = '';
+    svcs.forEach(function(svc) {
+        var row = document.createElement('div');
+        row.className = 'svc-row';
+        row.id = 'svc-row-' + svc.name;
+
+        var startDis = !svc.controllable || svc.status === 'active'   ? 'disabled' : '';
+        var stopDis  = !svc.controllable || svc.status !== 'active'   ? 'disabled' : '';
+
+        row.innerHTML =
+            '<span class="svc-label">' + svc.label + '</span>' +
+            '<span class="svc-port">' + (svc.port ? 'port ' + svc.port : '&mdash;') + '</span>' +
+            (svc.controllable
+                ? '<button class="btn-start" ' + startDis + ' onclick="svcAction(\'' + svc.name + '\',\'start\')">&#9654; Start</button>' +
+                  '<button class="btn-stop"  ' + stopDis  + ' onclick="svcAction(\'' + svc.name + '\',\'stop\')">&#9646;&#9646; Stop</button>'
+                : '<span style="min-width:148px;font-size:10px;color:var(--dim);text-align:center">protected</span>'
+            ) +
+            '<div class="svc-status">' +
+                '<div class="' + dotClass(svc.status) + '"></div>' +
+                '<span class="' + textClass(svc.status) + '">' + svc.status + '</span>' +
+            '</div>';
+        list.appendChild(row);
+    });
+}
+
+function updateServiceRow(name, status) {
+    var row = document.getElementById('svc-row-' + name);
+    if (!row) return;
+    var dot  = row.querySelector('.dot');
+    var text = row.querySelector('.status-text');
+    var startBtn = row.querySelector('.btn-start');
+    var stopBtn  = row.querySelector('.btn-stop');
+    if (dot)  { dot.className  = dotClass(status); }
+    if (text) { text.className = textClass(status); text.textContent = status; }
+    if (startBtn) startBtn.disabled = (status === 'active');
+    if (stopBtn)  stopBtn.disabled  = (status !== 'active');
+}
+
+function svcAction(name, action) {
+    fetch(BASE + '/api/service/' + name + '/' + action, {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (!d.ok) { alert('Error: ' + d.message); return; }
+            setTimeout(function(){ loadServices(true); }, 800);
+        })
+        .catch(function(e){ alert('Request failed: ' + e); });
+}
+
+var _svcsLoaded = false;
+function loadServices(forceRender) {
+    fetch(BASE + '/api/services').then(function(r){ return r.json(); }).then(function(svcs){
+        if (!_svcsLoaded || forceRender) {
+            renderServices(svcs);
+            _svcsLoaded = true;
+        } else {
+            svcs.forEach(function(svc){ updateServiceRow(svc.name, svc.status); });
+        }
+    }).catch(function(){});
+}
+
+/* ── Databases ──────────────────────────────────────────────── */
+function renderDbs(dbs) {
+    var list = document.getElementById('db-list');
+    list.innerHTML = '';
+    Object.keys(dbs).forEach(function(key) {
+        var db = dbs[key];
+        var counts = '';
+        if (db.counts) {
+            counts = Object.keys(db.counts).map(function(t){
+                return t + ': <span>' + (db.counts[t] !== null ? db.counts[t].toLocaleString() : '?') + '</span>';
+            }).join(' &nbsp;|&nbsp; ');
+        }
+
+        var row = document.createElement('div');
+        row.className = 'db-row';
+        row.id = 'db-row-' + key;
+        row.innerHTML =
+            '<span class="db-label">' + db.label + '</span>' +
+            '<div class="db-stats">' +
+                '<div>' + (db.exists ? counts : '<span style="color:var(--dim)">No database file yet</span>') + '</div>' +
+                '<div style="margin-top:3px;color:var(--dim)">Size: <span style="color:var(--muted)">' + db.size_human + '</span>' +
+                    ' &nbsp;&bull;&nbsp; Total rows: <span style="color:var(--value-green)">' + (db.total_rows||0).toLocaleString() + '</span></div>' +
+            '</div>' +
+            '<button class="btn-clear" onclick="askClear(\'' + key + '\')">&#128465; Clear DB</button>' +
+            '<div class="db-confirm" id="db-confirm-' + key + '">' +
+                '<span>Delete all data?</span>' +
+                '<button class="btn-confirm-yes" onclick="doClear(\'' + key + '\')">Yes, delete</button>' +
+                '<button class="btn-confirm-no" onclick="cancelClear(\'' + key + '\')">Cancel</button>' +
+            '</div>' +
+            '<span class="db-msg" id="db-msg-' + key + '"></span>';
+        list.appendChild(row);
+    });
+}
+
+function updateDbRow(key, db) {
+    var row = document.getElementById('db-row-' + key);
+    if (!row) return;
+    var stats = row.querySelector('.db-stats');
+    if (!stats) return;
+    var counts = Object.keys(db.counts||{}).map(function(t){
+        return t + ': <span>' + (db.counts[t] !== null ? db.counts[t].toLocaleString() : '?') + '</span>';
+    }).join(' &nbsp;|&nbsp; ');
+    stats.innerHTML =
+        '<div>' + (db.exists ? counts : '<span style="color:var(--dim)">No database file yet</span>') + '</div>' +
+        '<div style="margin-top:3px;color:var(--dim)">Size: <span style="color:var(--muted)">' + db.size_human + '</span>' +
+            ' &nbsp;&bull;&nbsp; Total rows: <span style="color:var(--value-green)">' + (db.total_rows||0).toLocaleString() + '</span></div>';
+}
+
+function askClear(key) {
+    var c = document.getElementById('db-confirm-' + key);
+    if (c) c.classList.add('visible');
+}
+function cancelClear(key) {
+    var c = document.getElementById('db-confirm-' + key);
+    if (c) c.classList.remove('visible');
+}
+function doClear(key) {
+    cancelClear(key);
+    var msg = document.getElementById('db-msg-' + key);
+    if (msg) { msg.textContent = 'Clearing\u2026'; msg.style.color = '#bbbb44'; }
+    fetch(BASE + '/api/db/' + key + '/clear', {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (msg) {
+                msg.textContent = d.ok ? 'Cleared \u2713' : 'Error: ' + d.message;
+                msg.style.color = d.ok ? '#66dd66' : '#ff5555';
+                setTimeout(function(){ if(msg)msg.textContent=''; }, 4000);
+            }
+            setTimeout(loadDbs, 1000);
+        })
+        .catch(function(e){
+            if (msg) { msg.textContent = 'Failed'; msg.style.color = '#ff5555'; }
+        });
+}
+
+var _dbsLoaded = false;
+function loadDbs() {
+    fetch(BASE + '/api/db').then(function(r){ return r.json(); }).then(function(dbs){
+        if (!_dbsLoaded) { renderDbs(dbs); _dbsLoaded = true; }
+        else { Object.keys(dbs).forEach(function(k){ updateDbRow(k, dbs[k]); }); }
+    }).catch(function(){});
+}
+
+/* ── Polling ─────────────────────────────────────────────────── */
+var cd = 5;
+setInterval(function(){
+    cd--;
+    document.getElementById('tick').textContent = 'refresh in ' + cd + 's';
+    if (cd <= 0) { cd = 5; loadServices(false); loadDbs(); }
+}, 1000);
+
+loadServices(true);
+loadDbs();
+</script>
+</body>
+</html>
