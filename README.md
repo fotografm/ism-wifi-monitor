@@ -1,5 +1,26 @@
 # ism-wifi-monitor
 
+> **Legal and ethical notice**
+>
+> This project was built for personal research — specifically to monitor and
+> understand the radio behaviour of my own fixed and mobile devices, learn how
+> 802.11 and ISM radio protocols work in practice, and identify what information
+> my own equipment broadcasts passively.
+>
+> I do not advocate using this software to monitor devices you do not own or
+> for which you do not have explicit permission from the owner. Passive radio
+> monitoring laws vary significantly by country and jurisdiction. In many places
+> capturing and storing radio transmissions from third-party devices — even
+> passively — may be restricted or prohibited without consent.
+>
+> **Check the laws in your jurisdiction before deploying this software.**
+>
+> The author accepts no responsibility for the actions of anyone who uses this
+> software. By using it you accept full responsibility for ensuring your use is
+> lawful and ethical.
+
+---
+
 A passive radio monitoring platform for Raspberry Pi. Captures and analyses
 802.11 WiFi frames, ISM band radio signals (433/868/315 MHz), and GPS data.
 Runs completely headless — the Pi serves its own browser-based UI over a WiFi
