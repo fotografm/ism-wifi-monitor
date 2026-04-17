@@ -91,6 +91,10 @@ sudo -u user wget -q -O "$DEPLOY_DIR/data/oui.csv" \
 echo "[6/8] Initialising databases"
 sudo -u user "$VENV/bin/python" "$DEPLOY_DIR/db_wifi.py"
 sudo -u user "$VENV/bin/python" "$DEPLOY_DIR/db_ism.py"
+sudo -u user "$VENV/bin/python" "$DEPLOY_DIR/db_history.py"
+# Ensure all DB files are user-owned so services running as 'user' can write them.
+# Root services (wifi-scan, history-monitor) can always write to user-owned files.
+chown user:user "$DEPLOY_DIR"/db/ "$DEPLOY_DIR"/db/*.db "$DEPLOY_DIR"/db/*.db-shm "$DEPLOY_DIR"/db/*.db-wal 2>/dev/null || true
 
 # ── 7. Network — configure gpsd and mark wlan1 unmanaged ─────────────────────
 echo "[7/8] Configuring network and gpsd"
