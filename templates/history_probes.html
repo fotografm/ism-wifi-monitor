@@ -2,6 +2,7 @@
 {% block title %}Probe Log{% endblock %}
 {% block content %}
 <h1>Probe Log</h1>
+<p style="color:var(--dim);font-size:11px;margin-bottom:14px">Paginated log of every probe request captured. Unlike the Live tab, this is the full historical record — filterable by source MAC or target SSID. The R column flags randomised MACs; the Fingerprint column links to the device profile built from its IE capabilities.</p>
 <div class="filter-bar">
   <form method="get" action="/probes" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <input type="text" name="mac"  placeholder="Filter MAC&#8230;"  value="{{ mac_filter }}"  autocomplete="off">
