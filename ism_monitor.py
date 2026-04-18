@@ -226,7 +226,10 @@ class Rtl433Manager:
                 await asyncio.wait_for(self.proc.wait(), timeout=4.0)
             except asyncio.TimeoutError:
                 self.proc.kill()
-                await self.proc.wait()
+                try:
+                    await asyncio.wait_for(self.proc.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    pass
         self.proc = None
 
 
