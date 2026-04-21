@@ -178,12 +178,12 @@ systemctl restart NetworkManager
 sleep 3
 
 # Update existing hotspot or create a new one
-echo "     Configuring hotspot SSID: $HOSTNAME_NOW  password: reticulum"
+echo "     Configuring hotspot SSID: $HOSTNAME_NOW  password: password"
 HOT_UUID=$(nmcli -t -f UUID,TYPE con show 2>/dev/null | grep ':wifi$' | head -1 | cut -d: -f1 || true)
 if [ -n "$HOT_UUID" ]; then
     nmcli con modify "$HOT_UUID" \
         802-11-wireless.ssid "$HOSTNAME_NOW" \
-        wifi-sec.psk 'reticulum' \
+        wifi-sec.psk 'password' \
         connection.interface-name wlan0 2>/dev/null || true
     echo "     Updated existing hotspot connection"
 else
@@ -195,7 +195,7 @@ else
         ssid "$HOSTNAME_NOW" \
         -- \
         wifi-sec.key-mgmt wpa-psk \
-        wifi-sec.psk 'reticulum' \
+        wifi-sec.psk 'password' \
         802-11-wireless.mode ap \
         802-11-wireless.band bg \
         ipv4.method shared 2>/dev/null \

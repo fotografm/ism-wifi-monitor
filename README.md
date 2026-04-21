@@ -315,7 +315,7 @@ The install script will:
 6. Initialise all SQLite databases
 7. Configure gpsd to use `/dev/ttyACM0`
 8. Enable WiFi, bring up wlan0, set the hotspot SSID to the hostname
-9. Create the hotspot if it does not exist (password: `reticulum`)
+9. Create the hotspot if it does not exist (password: `password`)
 10. Mark the monitor interface as unmanaged in NetworkManager
 11. Install and enable all systemd services
 
@@ -330,7 +330,7 @@ sudo reboot
 ### Access the UI
 
 Connect your device to the `raspi81` (or `raspi82`) WiFi hotspot.
-Password: `reticulum`
+Password: `password`
 
 Open `http://10.42.0.1` in your browser.
 
