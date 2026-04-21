@@ -31,7 +31,8 @@ apt-get install -y \
     rtl-433 \
     sqlite3 \
     iw rfkill \
-    gpsd gpsd-clients
+    gpsd gpsd-clients \
+    libusb-1.0-0
 
 # ── 2. Create deploy directories ──────────────────────────────────────────────
 echo "[2/8] Creating deploy directories"
@@ -39,7 +40,7 @@ mkdir -p "$DEPLOY_DIR"/{db,tile_cache,tiles,templates,data}
 chown -R user:user "$DEPLOY_DIR"
 
 # ── 3. Copy files ─────────────────────────────────────────────────────────────
-echo "[3/8] Copying application files"
+echo "[3/8] Copying application files and ferrosdr binary"
 cp "$REPO_DIR"/config.py                 "$DEPLOY_DIR/"
 cp "$REPO_DIR"/gps_reader_async.py       "$DEPLOY_DIR/"
 cp "$REPO_DIR"/gps_reader_sync.py        "$DEPLOY_DIR/"
@@ -62,6 +63,22 @@ cp "$REPO_DIR"/services_server.py        "$DEPLOY_DIR/"
 cp "$REPO_DIR"/raspi-style.css           "$DEPLOY_DIR/"
 cp "$REPO_DIR"/templates/*.html          "$DEPLOY_DIR/templates/"
 cp -r "$REPO_DIR"/data/                  "$DEPLOY_DIR/"
+
+# ferrosdr binary + profiles (pre-compiled armv7 binary lives in repo root)
+if [ -f "$REPO_DIR/ferrosdr" ]; then
+    cp "$REPO_DIR/ferrosdr"      /home/user/ferrosdr
+    chmod +x /home/user/ferrosdr
+    chown user:user /home/user/ferrosdr
+    echo "     ferrosdr binary installed"
+else
+    echo "     WARNING: ferrosdr binary not found in repo — skipping"
+fi
+if [ -f "$REPO_DIR/profiles.json" ]; then
+    cp "$REPO_DIR/profiles.json" /home/user/profiles.json
+    chown user:user /home/user/profiles.json
+    echo "     profiles.json installed"
+fi
+
 chown -R user:user "$DEPLOY_DIR"
 
 # ── 4. Python venv ────────────────────────────────────────────────────────────
@@ -123,7 +140,7 @@ echo "     wlan1 marked unmanaged by NetworkManager"
 systemctl reload NetworkManager 2>/dev/null || true
 
 # ── 8. Install and enable systemd services ────────────────────────────────────
-echo "[8/8] Installing systemd services"
+echo "[8/8] Installing systemd services and udev rules"
 cp "$REPO_DIR"/systemd/rfkill-unblock.service            "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-landing.service          "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-gps.service              "$SVCDIR/"
@@ -136,6 +153,15 @@ cp "$REPO_DIR"/systemd/ism-wifi-history-web.service      "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-terminal.service         "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-notes.service            "$SVCDIR/"
 cp "$REPO_DIR"/systemd/ism-wifi-services.service         "$SVCDIR/"
+cp "$REPO_DIR"/systemd/ferrosdr.service                  "$SVCDIR/"
+cp "$REPO_DIR"/systemd/ferrosdr-watchdog.service         "$SVCDIR/"
+cp "$REPO_DIR"/systemd/ferrosdr-watchdog.timer           "$SVCDIR/"
+
+# udev rule: disable USB autosuspend for RTL2838 dongle
+cp "$REPO_DIR"/systemd/99-rtlsdr-power.rules /etc/udev/rules.d/
+udevadm control --reload
+udevadm trigger
+echo "     udev RTL-SDR power rule installed"
 
 systemctl daemon-reload
 
@@ -151,11 +177,14 @@ for svc in \
     ism-wifi-history-web \
     ism-wifi-terminal \
     ism-wifi-notes \
-    ism-wifi-services
+    ism-wifi-services \
+    ferrosdr-watchdog.timer
 do
     systemctl enable "$svc"
     echo "     Enabled: $svc"
 done
+# ferrosdr itself is NOT auto-enabled — start manually when needed
+echo "     Note: ferrosdr is installed but not auto-enabled (mutually exclusive with ism-wifi-ism)"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
@@ -178,8 +207,9 @@ echo "  Access at: http://$IP"
 echo ""
 echo "  Port summary:"
 echo "    80    — Landing page"
+echo "    8080  — FerroSDR waterfall (RTL-SDR, mutually exclusive with ISM)"
 echo "    8091  — WiFi APs / channel usage"
-echo "    8092  — ISM Monitor (RTL-SDR required)"
+echo "    8092  — ISM Monitor (RTL-SDR, mutually exclusive with FerroSDR)"
 echo "    8093  — GPS Dashboard"
 echo "    8094  — 3D Satellite Skymap"
 echo "    8095  — WiFi History"

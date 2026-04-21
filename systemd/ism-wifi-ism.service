@@ -1,6 +1,7 @@
 [Unit]
 Description=raspi81 ISM Monitor (port 8092)
 After=network.target rfkill-unblock.service
+Conflicts=ferrosdr.service
 
 [Service]
 Type=simple

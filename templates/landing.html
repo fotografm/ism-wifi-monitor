@@ -142,8 +142,8 @@ body { display:flex; flex-direction:column; align-items:center;
     <span class="num" id="cnt-total">—</span> total ISM packets
 </div>
 
-<!-- ISM section -->
-<div class="section-label">ISM Monitor</div>
+<!-- ISM / SDR section -->
+<div class="section-label">RTL-SDR Radio</div>
 
 <a href="#" onclick="window.location.href='http://'+location.hostname+':8092/feed';return false;" class="big-btn">
     <span class="icon">📡</span>
@@ -161,6 +161,11 @@ body { display:flex; flex-direction:column; align-items:center;
         <span class="icon">📊</span>
         <span class="label">Status</span>
         <span class="sub">rtl_433, GPS, tiles</span>
+    </a>
+    <a href="#" onclick="window.open('http://'+location.hostname+':8080','_blank');return false;" class="grid-btn">
+        <span class="icon">🌊</span>
+        <span class="label">FerroSDR</span>
+        <span class="sub">SDR waterfall &amp; audio</span>
     </a>
 
 <!-- WiFi section -->

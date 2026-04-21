@@ -86,6 +86,22 @@ body { background:var(--bg);color:var(--text);font-family:monospace;font-size:13
 .btn-confirm-no  { padding:3px 10px;border-radius:3px;border:1px solid #444466;background:#0d0d20;color:#aaaadd;font-family:monospace;font-size:11px;cursor:pointer; }
 .btn-confirm-no:hover  { background:#1a1a30; }
 .db-msg { font-size:10px;min-width:80px; }
+
+/* ── RTL-SDR mutex group ──────────────────────────────────── */
+.rtlsdr-group {
+    background:var(--panel);border:1px solid var(--border-dim);border-radius:4px;
+    padding:10px 12px;margin-bottom:6px;
+}
+.rtlsdr-note {
+    font-size:10px;color:var(--dim);letter-spacing:1px;margin-bottom:8px;
+    text-transform:uppercase;
+}
+.rtlsdr-rows { display:flex;flex-direction:column;gap:6px; }
+.rtlsdr-row {
+    display:flex;align-items:center;gap:10px;
+    padding:6px 0;border-top:1px solid var(--border-dim);
+}
+.rtlsdr-row:first-child { border-top:none;padding-top:0; }
 </style>
 </head>
 <body>
@@ -93,6 +109,13 @@ body { background:var(--bg);color:var(--text);font-family:monospace;font-size:13
     <a href="#" onclick="window.location.href='http://'+window.location.hostname;return false;" class="back-btn">&#8592; Home</a>
     <h1>&#9881; Services</h1>
     <span id="tick"></span>
+</div>
+
+<div class="section">
+    <div class="section-title">RTL-SDR Radio &mdash; mutually exclusive</div>
+    <div id="rtlsdr-group-container">
+        <div style="color:var(--dim);font-size:11px;padding:12px">Loading&hellip;</div>
+    </div>
 </div>
 
 <div class="section">
@@ -131,29 +154,66 @@ function textClass(status) {
     return 'status-text status-unknown';
 }
 
+function svcRowHTML(svc) {
+    var startDis = !svc.controllable || svc.status === 'active' ? 'disabled' : '';
+    var stopDis  = !svc.controllable || svc.status !== 'active' ? 'disabled' : '';
+    return '<span class="svc-label">' + svc.label + '</span>' +
+        '<span class="svc-port">' + (svc.port ? 'port ' + svc.port : '&mdash;') + '</span>' +
+        (svc.controllable
+            ? '<button class="btn-start" ' + startDis + ' onclick="svcAction(\'' + svc.name + '\',\'start\')">&#9654; Start</button>' +
+              '<button class="btn-stop"  ' + stopDis  + ' onclick="svcAction(\'' + svc.name + '\',\'stop\')">&#9646;&#9646; Stop</button>'
+            : '<span style="min-width:148px;font-size:10px;color:var(--dim);text-align:center">protected</span>'
+        ) +
+        '<div class="svc-status">' +
+            '<div class="' + dotClass(svc.status) + '"></div>' +
+            '<span class="' + textClass(svc.status) + '">' + svc.status + '</span>' +
+        '</div>';
+}
+
+var _allSvcs = [];
+
 function renderServices(svcs) {
+    _allSvcs = svcs;
+
+    // Split into mutex groups and regular
+    var mutexGroups = {};
+    var regular = [];
+    svcs.forEach(function(svc) {
+        if (svc.mutex_group) {
+            if (!mutexGroups[svc.mutex_group]) mutexGroups[svc.mutex_group] = [];
+            mutexGroups[svc.mutex_group].push(svc);
+        } else {
+            regular.push(svc);
+        }
+    });
+
+    // Render RTL-SDR mutex group
+    var container = document.getElementById('rtlsdr-group-container');
+    container.innerHTML = '';
+    if (mutexGroups['rtlsdr']) {
+        var box = document.createElement('div');
+        box.className = 'rtlsdr-group';
+        box.innerHTML = '<div class="rtlsdr-note">Only one service can use the RTL-SDR dongle at a time &mdash; starting one stops the other</div>' +
+            '<div class="rtlsdr-rows" id="rtlsdr-rows"></div>';
+        container.appendChild(box);
+        var rows = document.getElementById('rtlsdr-rows');
+        mutexGroups['rtlsdr'].forEach(function(svc) {
+            var row = document.createElement('div');
+            row.className = 'rtlsdr-row';
+            row.id = 'svc-row-' + svc.name;
+            row.innerHTML = svcRowHTML(svc);
+            rows.appendChild(row);
+        });
+    }
+
+    // Render regular services
     var list = document.getElementById('svc-list');
     list.innerHTML = '';
-    svcs.forEach(function(svc) {
+    regular.forEach(function(svc) {
         var row = document.createElement('div');
         row.className = 'svc-row';
         row.id = 'svc-row-' + svc.name;
-
-        var startDis = !svc.controllable || svc.status === 'active'   ? 'disabled' : '';
-        var stopDis  = !svc.controllable || svc.status !== 'active'   ? 'disabled' : '';
-
-        row.innerHTML =
-            '<span class="svc-label">' + svc.label + '</span>' +
-            '<span class="svc-port">' + (svc.port ? 'port ' + svc.port : '&mdash;') + '</span>' +
-            (svc.controllable
-                ? '<button class="btn-start" ' + startDis + ' onclick="svcAction(\'' + svc.name + '\',\'start\')">&#9654; Start</button>' +
-                  '<button class="btn-stop"  ' + stopDis  + ' onclick="svcAction(\'' + svc.name + '\',\'stop\')">&#9646;&#9646; Stop</button>'
-                : '<span style="min-width:148px;font-size:10px;color:var(--dim);text-align:center">protected</span>'
-            ) +
-            '<div class="svc-status">' +
-                '<div class="' + dotClass(svc.status) + '"></div>' +
-                '<span class="' + textClass(svc.status) + '">' + svc.status + '</span>' +
-            '</div>';
+        row.innerHTML = svcRowHTML(svc);
         list.appendChild(row);
     });
 }
@@ -169,9 +229,24 @@ function updateServiceRow(name, status) {
     if (text) { text.className = textClass(status); text.textContent = status; }
     if (startBtn) startBtn.disabled = (status === 'active');
     if (stopBtn)  stopBtn.disabled  = (status !== 'active');
+    // Update cached status
+    var cached = _allSvcs.find(function(s){ return s.name === name; });
+    if (cached) cached.status = status;
 }
 
 function svcAction(name, action) {
+    if (action === 'start') {
+        // Check if another service in the same mutex group is active
+        var me = _allSvcs.find(function(s){ return s.name === name; });
+        if (me && me.mutex_group) {
+            var conflict = _allSvcs.find(function(s){
+                return s.name !== name && s.mutex_group === me.mutex_group && s.status === 'active';
+            });
+            if (conflict) {
+                if (!confirm('Starting ' + me.label + ' will stop ' + conflict.label + '. Continue?')) return;
+            }
+        }
+    }
     fetch(BASE + '/api/service/' + name + '/' + action, {method:'POST'})
         .then(function(r){ return r.json(); })
         .then(function(d){

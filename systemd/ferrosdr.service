@@ -1,0 +1,15 @@
+[Unit]
+Description=raspi81 FerroSDR waterfall server (port 8080)
+After=network.target rfkill-unblock.service
+Conflicts=ism-wifi-ism.service
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user
+ExecStart=/home/user/ferrosdr
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

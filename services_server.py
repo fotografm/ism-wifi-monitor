@@ -38,18 +38,20 @@ APP_DIR = Path('/home/user/ism-wifi-monitor')
 # ── Service definitions ───────────────────────────────────────────────────────
 
 SERVICES = [
-    {'name': 'ism-wifi-landing',         'label': 'Landing Page',          'port': 80},
-    {'name': 'ism-wifi-wifi-web',        'label': 'WiFi Web',              'port': 8091},
-    {'name': 'ism-wifi-ism',             'label': 'ISM Monitor',           'port': 8092},
-    {'name': 'ism-wifi-gps',             'label': 'GPS Dashboard',         'port': 8093},
-    {'name': 'ism-wifi-skymap3d',        'label': '3D Skymap',             'port': 8094},
-    {'name': 'ism-wifi-history-web',     'label': 'WiFi History Web',      'port': 8095},
-    {'name': 'ism-wifi-terminal',        'label': 'Terminal Server',       'port': 8096},
-    {'name': 'ism-wifi-notes',           'label': 'Notes Server',          'port': 8097},
-    {'name': 'ism-wifi-services',        'label': 'Services Control',      'port': 8098},
-    {'name': 'ism-wifi-wifi-scan',       'label': 'WiFi Scanner (root)',   'port': None},
-    {'name': 'ism-wifi-history-monitor', 'label': 'History Monitor (root)','port': None},
-    {'name': 'rfkill-unblock',           'label': 'RF Kill Unblock',       'port': None},
+    {'name': 'ism-wifi-landing',         'label': 'Landing Page',          'port': 80,   'mutex_group': None},
+    {'name': 'ism-wifi-wifi-web',        'label': 'WiFi Web',              'port': 8091, 'mutex_group': None},
+    {'name': 'ism-wifi-ism',             'label': 'ISM Monitor',           'port': 8092, 'mutex_group': 'rtlsdr'},
+    {'name': 'ferrosdr',                 'label': 'FerroSDR Waterfall',    'port': 8080, 'mutex_group': 'rtlsdr'},
+    {'name': 'ferrosdr-watchdog',        'label': 'FerroSDR USB Watchdog', 'port': None, 'mutex_group': None},
+    {'name': 'ism-wifi-gps',             'label': 'GPS Dashboard',         'port': 8093, 'mutex_group': None},
+    {'name': 'ism-wifi-skymap3d',        'label': '3D Skymap',             'port': 8094, 'mutex_group': None},
+    {'name': 'ism-wifi-history-web',     'label': 'WiFi History Web',      'port': 8095, 'mutex_group': None},
+    {'name': 'ism-wifi-terminal',        'label': 'Terminal Server',       'port': 8096, 'mutex_group': None},
+    {'name': 'ism-wifi-notes',           'label': 'Notes Server',          'port': 8097, 'mutex_group': None},
+    {'name': 'ism-wifi-services',        'label': 'Services Control',      'port': 8098, 'mutex_group': None},
+    {'name': 'ism-wifi-wifi-scan',       'label': 'WiFi Scanner (root)',   'port': None, 'mutex_group': None},
+    {'name': 'ism-wifi-history-monitor', 'label': 'History Monitor (root)','port': None, 'mutex_group': None},
+    {'name': 'rfkill-unblock',           'label': 'RF Kill Unblock',       'port': None, 'mutex_group': None},
 ]
 
 # Only allow start/stop of these — protect rfkill and self
@@ -213,6 +215,7 @@ async def api_services(request):
             'port':            svc['port'],
             'status':          status,
             'controllable':    svc['name'] in ALLOWED_CONTROL,
+            'mutex_group':     svc.get('mutex_group'),
         })
     return json_resp(result)
 
