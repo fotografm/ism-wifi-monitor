@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Status — raspi81</title>
+<title>Status</title>
 <link rel="stylesheet" href="/raspi-style.css">
 <style>
 body { padding:16px; max-width:600px; margin:0 auto; }
@@ -158,7 +158,7 @@ function clearTiles() {
 
 function sysAction(action) {
     const label = action === 'shutdown' ? 'Shut down' : 'Reboot';
-    if (!confirm(`${label} raspi81?`)) return;
+    if (!confirm(`${label} ${location.hostname}?`)) return;
     const m = document.getElementById('sys-msg');
     if (action === 'shutdown') {
         m.textContent = 'Shutting down… wait 10 seconds before removing power.';

@@ -37,6 +37,11 @@ async def handle_css(req: web.Request) -> web.Response:
     return web.Response(text=text, content_type='text/css')
 
 
+async def handle_ism_settings(req: web.Request) -> web.Response:
+    text = (TMPL_DIR / 'ism_settings.html').read_text()
+    return web.Response(text=text, content_type='text/html')
+
+
 async def handle_redirect(req: web.Request) -> web.Response:
     host = req.host.split(':')[0]
     raise web.HTTPFound(f'http://{host}:8092{req.path_qs}')
@@ -46,6 +51,7 @@ def build_app() -> web.Application:
     app = web.Application()
     app.router.add_get('/', handle_landing)
     app.router.add_get('/raspi-style.css', handle_css)
+    app.router.add_get('/settings', handle_ism_settings)
     app.router.add_route('*', '/{path:.*}', handle_redirect)
     return app
 
