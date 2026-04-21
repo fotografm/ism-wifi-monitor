@@ -7,6 +7,7 @@ Conflicts=ism-wifi-ism.service
 Type=simple
 User=user
 WorkingDirectory=/home/user
+ExecStartPre=/bin/sleep 2
 ExecStart=/home/user/ferrosdr
 Restart=always
 RestartSec=5
