@@ -120,6 +120,38 @@ severely degraded GPS performance with weak or no satellite reception.
 
 ## Architecture
 
+### 5 GHz hotspot — outdoor legal compliance (Germany / EU)
+
+The hotspot is configured on **channel 100 (5500 MHz)** in the 5470–5725 MHz band
+with `ieee80211h=1` (DFS + TPC enabled).
+
+**Why this matters:**
+The lower 5 GHz band (5150–5350 MHz, channels 36–64) is restricted to **indoor
+use only** across the entire EU. The 5470–5725 MHz band (channels 100–140) is
+permitted both indoors and outdoors in Germany and the EU, provided that
+Dynamic Frequency Selection (DFS) and Transmit Power Control (TPC) are active.
+
+**Applicable regulation:**
+- **ETSI EN 301 893 V2.1.1** — Harmonised EU standard for 5 GHz RLAN, mandating
+  DFS per ITU-R M.1652 and TPC for the 5470–5725 MHz band.
+- **Commission Implementing Decision (EU) 2021/1067** — amends Decision
+  2005/513/EC harmonising the 5 GHz band across EU member states, permitting
+  outdoor use of 5470–5725 MHz subject to DFS and TPC.
+- **Bundesnetzagentur Allgemeinzuteilung Vfg. 17/2021** — German national
+  implementation; permits outdoor 5470–5725 MHz RLAN use under the same
+  DFS/TPC conditions.
+
+**What DFS means in practice:**
+On first boot (or after any restart of hostapd), the radio performs a **radar
+detection scan of up to 60 seconds** before the channel becomes active. This is
+mandatory — the 5470–5725 MHz band is shared with weather and military radar,
+and DFS ensures the WLAN vacates the channel immediately if radar pulses are
+detected. The hotspot will appear unavailable during this scan.
+
+The configuration file is in `config/hostapd.conf`.
+
+---
+
 ### Hotspot-first design
 
 The Pi serves its UI over a WiFi hotspot (wlan0) rather than relying on an
@@ -460,6 +492,8 @@ ism-wifi-monitor/
 ├── notes_server.py             # Notes aiohttp REST server (port 8097)
 ├── services_server.py          # Services control aiohttp server (port 8098)
 ├── raspi-style.css             # Shared dark theme stylesheet
+├── config/
+│   └── hostapd.conf            # 5 GHz hotspot config (ch 100, DFS, outdoor-legal DE/EU)
 ├── install.sh                  # Installer for Pi 4B
 ├── install_pizero.sh           # Installer for Pi Zero 2W
 ├── data/
