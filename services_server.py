@@ -42,7 +42,6 @@ SERVICES = [
     {'name': 'ism-wifi-wifi-web',        'label': 'WiFi Web',              'port': 8091, 'mutex_group': None},
     {'name': 'ism-wifi-ism',             'label': 'ISM Monitor',           'port': 8092, 'mutex_group': 'rtlsdr'},
     {'name': 'ferrosdr',                 'label': 'FerroSDR Waterfall',    'port': 8080, 'mutex_group': 'rtlsdr'},
-    {'name': 'ferrosdr-watchdog',        'label': 'FerroSDR USB Watchdog', 'port': None, 'mutex_group': None},
     {'name': 'ism-wifi-gps',             'label': 'GPS Dashboard',         'port': 8093, 'mutex_group': None},
     {'name': 'ism-wifi-skymap3d',        'label': '3D Skymap',             'port': 8094, 'mutex_group': None},
     {'name': 'ism-wifi-history-web',     'label': 'WiFi History Web',      'port': 8095, 'mutex_group': None},
