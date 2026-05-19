@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>raspi81 CYBERDECK</title>
+<title>raspi83 CYBERDECK</title>
 <link rel="stylesheet" href="/raspi-style.css">
 <style>
 body { display:flex; flex-direction:column; align-items:center;
@@ -31,6 +31,12 @@ body { display:flex; flex-direction:column; align-items:center;
 .badge.gps-none  .dot { background:#555; }
 .badge .val { color:var(--value-white); font-weight:bold; }
 .badge .lbl { color:var(--muted); }
+
+#gps-time {
+    font-family:monospace; font-size:13px; letter-spacing:1px;
+    color:var(--value-green); text-align:center; width:100%;
+    white-space:nowrap;
+}
 
 #pkt-counts {
     text-align:center; color:var(--muted); font-size:12px;
@@ -113,8 +119,10 @@ body { display:flex; flex-direction:column; align-items:center;
 
 <div class="page-title">
     <span>📡 CYBERDECK</span>
-    raspi81
+    raspi83
 </div>
+
+<div id="gps-time">-- -- --</div>
 
 <div id="badges">
     <div class="badge gps-none" id="badge-gps">
@@ -162,6 +170,7 @@ body { display:flex; flex-direction:column; align-items:center;
         <span class="label">Status</span>
         <span class="sub">rtl_433, GPS, tiles</span>
     </a>
+
     <a href="#" onclick="window.open('http://'+location.hostname+':8080','_blank');return false;" class="grid-btn">
         <span class="icon">🌊</span>
         <span class="label">FerroSDR</span>
@@ -226,6 +235,7 @@ body { display:flex; flex-direction:column; align-items:center;
 <div id="sysinfo-row" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;width:100%;max-width:480px;">
     <div class="badge"><span class="lbl">Uptime</span><span class="val" id="si-uptime">—</span></div>
     <div class="badge"><span class="lbl">CPU</span><span class="val" id="si-cpu">—</span></div>
+    <div class="badge"><span class="lbl">Temp</span><span class="val" id="si-temp">—</span></div>
     <div class="badge"><span class="lbl">RAM</span><span class="val" id="si-ram">—</span></div>
     <div class="badge"><span class="lbl">Disk</span><span class="val" id="si-disk">—</span></div>
 </div>
@@ -251,8 +261,9 @@ body { display:flex; flex-direction:column; align-items:center;
 </div>
 
 <script>
-const API_ISM  = 'http://' + location.hostname + ':8092';
-const API_WIFI = 'http://' + location.hostname + ':8091';
+const API_ISM      = 'http://' + location.hostname + ':8092';
+const API_WIFI     = 'http://' + location.hostname + ':8091';
+const API_SERVICES = 'http://' + location.hostname + ':8098';
 const WS_URL   = 'ws://'  + location.hostname + ':8092/ws';
 let ws, wsRetry;
 
@@ -264,26 +275,41 @@ function connect() {
     ws.onmessage = function(ev) {
         var msg;
         try { msg = JSON.parse(ev.data); } catch(e) { return; }
-        if (msg.type === 'gps')    updateGps(msg.data);
         if (msg.type === 'status') updateRtl(msg.data);
         if (msg.type === 'signal') scheduleStatusUpdate();
     };
 }
 
-function updateGps(d) {
+function updateGpsDisplay(fix, mode, gpsTime) {
     var el  = document.getElementById('badge-gps');
     var val = document.getElementById('gps-val');
+    var timeEl = document.getElementById('gps-time');
     el.className = 'badge';
-    if (d.status === 'FIX') {
+    if (fix) {
         el.classList.add('gps-fix');
         val.textContent = 'FIX';
-    } else if (d.status === 'NO_FIX') {
+    } else if (mode > 0) {
         el.classList.add('gps-nofix');
         val.textContent = 'NO FIX';
     } else {
         el.classList.add('gps-none');
         val.textContent = 'NO GPS';
     }
+    if (gpsTime) {
+        timeEl.textContent = gpsTime
+            .replace('T', '  ')
+            .replace(/\.\d+Z$/, ' Z')
+            .replace('Z', ' UTC');
+    } else {
+        timeEl.textContent = '-- -- --';
+    }
+}
+
+function updateGpsFromApi() {
+    fetch('/api/gps').then(function(r) { return r.json(); }).then(function(d) {
+        var pos = d.position || {};
+        updateGpsDisplay(pos.fix || false, pos.mode || 0, pos.gps_time || null);
+    }).catch(function() {});
 }
 
 function updateRtl(d) {
@@ -310,19 +336,19 @@ function updateCounts() {
             d.signals.today.toLocaleString();
         document.getElementById('cnt-total').textContent =
             d.signals.total.toLocaleString();
-        if (d.sysinfo) {
-            var s = d.sysinfo;
-            document.getElementById('si-uptime').textContent = s.uptime || '—';
-            var cpuStr = s.cpu_pct + '%';
-            if (s.cpu_temp !== null && s.cpu_temp !== undefined) {
-                cpuStr += ' ' + s.cpu_temp + '\u00b0C';
-            }
-            document.getElementById('si-cpu').textContent = cpuStr;
-            document.getElementById('si-ram').textContent =
-                s.ram_used_mb + ' / ' + s.ram_total_mb + ' MB';
-            document.getElementById('si-disk').textContent =
-                s.disk_used_mb + ' / ' + s.disk_total_mb + ' MB';
-        }
+    }).catch(function() {});
+}
+
+function updateSysinfo() {
+    fetch('/api/sysinfo').then(function(r) { return r.json(); }).then(function(s) {
+        document.getElementById('si-uptime').textContent = s.uptime || '—';
+        document.getElementById('si-cpu').textContent = s.cpu_pct + '%';
+        document.getElementById('si-temp').textContent =
+            (s.cpu_temp !== null && s.cpu_temp !== undefined) ? s.cpu_temp + '\u00b0C' : '—';
+        document.getElementById('si-ram').textContent =
+            s.ram_used_mb + ' / ' + s.ram_total_mb + ' MB';
+        document.getElementById('si-disk').textContent =
+            s.disk_used_mb + ' / ' + s.disk_total_mb + ' MB';
     }).catch(function() {});
 }
 
@@ -345,8 +371,8 @@ function confirmAction(action) {
         isShutdown ? '\ud83d\udd34 Shutdown' : '\ud83d\udd04 Reboot';
     document.getElementById('modal-msg').textContent =
         isShutdown
-        ? 'This will power off raspi81. Wait 10 seconds before removing power.'
-        : 'This will reboot raspi81.';
+        ? 'This will power off raspi83. Wait 10 seconds before removing power.'
+        : 'This will reboot raspi83.';
     document.getElementById('modal-ok').textContent =
         isShutdown ? 'Shut down' : 'Reboot';
     document.getElementById('modal-bg').classList.add('show');
@@ -357,14 +383,18 @@ function closeModal() {
 }
 document.getElementById('modal-ok').onclick = function() {
     if (!_pendingAction) return;
-    fetch(API_ISM + '/api/' + _pendingAction, { method: 'POST' }).catch(function() {});
+    fetch(API_SERVICES + '/api/' + _pendingAction, { method: 'POST' }).catch(function() {});
     closeModal();
 };
 
 connect();
+updateGpsFromApi();
 updateCounts();
+updateSysinfo();
 updateWifiStats();
+setInterval(updateGpsFromApi,  2000);
 setInterval(updateCounts,     30000);
+setInterval(updateSysinfo,    30000);
 setInterval(updateWifiStats,  30000);
 </script>
 </body>

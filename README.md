@@ -175,6 +175,31 @@ regardless of network infrastructure.
 | 8097 | Notes | aiohttp |
 | 8098 | Services control | aiohttp |
 
+### Landing page
+
+The landing page at port 80 (`landing_server.py`) is fully self-contained — it
+does not depend on any other service being up to show its own data.
+
+**Live GPS time** — A `#gps-time` header displays the current GPS time in
+`YYYY-MM-DD  HH:MM:SS UTC` format, updated every 2 seconds. When no GPS fix is
+available it shows `-- -- --`. This is identical in format to the GPS dashboard
+header.
+
+**GPS status badge** — The GPS / FIX / NO FIX / NO GPS badge is driven by
+polling the GPS dashboard API at port 8093 every 2 seconds (not via the ISM
+monitor WebSocket). This means the GPS badge works correctly even when the ISM
+monitor is stopped.
+
+**Same-origin GPS proxy** — The landing server exposes `GET /api/gps` which
+proxies requests to `http://127.0.0.1:8093/api/gps` server-side. This avoids a
+CORS block: browsers refuse cross-origin fetches from port 80 to port 8093, but
+a server-side proxy request has no such restriction.
+
+**System info** — `GET /api/sysinfo` is served directly by the landing server
+(reads `/proc/uptime`, `/proc/stat`, `/proc/meminfo`, statvfs and
+`/sys/class/thermal/thermal_zone0/temp`). The sysinfo row shows Uptime, CPU%,
+CPU temperature, RAM and disk usage. This works without the ISM monitor running.
+
 ### Database design
 
 Four SQLite databases store data independently:
@@ -355,6 +380,81 @@ If the receiver is not getting a fix:
    should show NMEA sentences. `ANTSTATUS=OK` confirms the antenna is connected.
 
 The GPS dashboard is at `http://<ip>:8093`. The 3D skymap is at port 8094.
+
+### GPS antenna
+
+The small USB stick form factor (G72 and similar) has a fragile internal
+ceramic patch antenna. If the receiver sees signals below ~25 dBHz even
+outdoors, or fails to acquire a lock, the antenna is likely damaged or
+degraded. Replacing with a mouse-style GPS receiver with an external patch
+antenna immediately recovers to 14+ satellites at 30–40 dBHz.
+
+### GPS time sync without NTP
+
+When the Pi has no internet connection, `apt`, `systemd` and other tools fail
+if the system clock is behind the release date of installed packages. A
+`gps-timesync` systemd service solves this by setting the system clock from a
+GPS fix at boot and hourly thereafter.
+
+Create `/usr/local/bin/gps-timesync`:
+
+```python
+#!/usr/bin/env python3
+import gps, time, subprocess, sys
+session = gps.gps(mode=gps.WATCH_ENABLE | gps.WATCH_JSON)
+deadline = time.monotonic() + 90
+while time.monotonic() < deadline:
+    try:
+        report = session.next()
+    except StopIteration:
+        break
+    if report.get('class') == 'TPV' and report.get('mode', 0) >= 2 and 'time' in report:
+        t = report['time']
+        r = subprocess.run(['date', '-s', t], capture_output=True)
+        if r.returncode == 0:
+            print(f'GPS time set: {t}')
+            sys.exit(0)
+print('GPS sync failed: no fix within 90s', file=sys.stderr)
+sys.exit(1)
+```
+
+Create `/etc/systemd/system/gps-timesync.service`:
+
+```ini
+[Unit]
+Description=Set system clock from GPS
+Requires=gpsd.service
+After=gpsd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/gps-timesync
+```
+
+Create `/etc/systemd/system/gps-timesync.timer`:
+
+```ini
+[Unit]
+Description=GPS time sync - at boot and hourly
+
+[Timer]
+OnBootSec=1min
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable with `sudo systemctl enable --now gps-timesync.timer`.
+
+**Notes:**
+- `OnBootSec=1min` gives gpsd time to acquire a fix before the script runs.
+- Do not use `RemainAfterExit=yes` on the service — it prevents the timer from
+  rescheduling the hourly run.
+- `fake-hwclock` saves the last known time on shutdown. To test cold-boot
+  behaviour with a stale clock, stop fake-hwclock before writing a stale
+  timestamp: `sudo systemctl stop fake-hwclock && echo "2020-01-01 00:00:00" | sudo tee /etc/fake-hwclock.data && sudo reboot`.
 
 ---
 
